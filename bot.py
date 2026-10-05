@@ -21,16 +21,17 @@ WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.botho
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
 REVIEWS_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
-PDF_RULES_PATH = "rules.pdf"
 
 GEO_LATITUDE = 45.053805
 GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
+# Каталог номеров базы отдыха «Русалочка» с прямыми ссылками на фотографии
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/apart-2p.jpg",
         "description": (
             "🏡 Номер с кухней (апарт.) 2-х местный + доп.место\n\n"
             "Уютный семейный апартамент с индивидуальной кухонной зоной.\n\n"
@@ -47,6 +48,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "kitchen_3p": {
         "title": "Номер с кухней (апарт.) 3-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/apart-3p.jpg",
         "description": (
             "🏡 Номер с кухней (апарт.) 3-х местный + доп.место\n\n"
             "Просторный апартамент для комфортного отдыха всей семьей.\n\n"
@@ -63,6 +65,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_1k_2p": {
         "title": "Эко-домик 1-комнатный 2-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/eco-1k-2p.jpg",
         "description": (
             "🏡 Эко-домик 1-комнатный 2-х местный + доп.место\n\n"
             "Отдельный домик из экологически чистого натурального бруса.\n\n"
@@ -78,6 +81,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_2k_3p": {
         "title": "Эко-домик 2-комнатный 3-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/eco-2k-3p.jpg",
         "description": (
             "🏡 Эко-домик 2-комнатный 3-х местный + доп.место\n\n"
             "Двухкомнатный коттедж из бруса для большой семьи.\n\n"
@@ -94,6 +98,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_brick_3p": {
         "title": "СТАНДАРТ кирпичный домик 3-х местный",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-brick-3p.jpg",
         "description": (
             "🏡 СТАНДАРТ кирпичный домик 3-х местный\n\n"
             "Капитальный прохладный домик для отдыха 3 человек.\n\n"
@@ -109,6 +114,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_wood_2p": {
         "title": "СТАНДАРТ Деревянный домик 2-х местный",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-wood-2p.jpg",
         "description": (
             "🏡 СТАНДАРТ Деревянный домик 2-х местный\n\n"
             "Уютный деревянный домик для двоих в тишине и зелени.\n\n"
@@ -124,6 +130,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p": {
         "title": "СТАНДАРТ 2-х местный",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-2p.jpg",
         "description": (
             "🏡 СТАНДАРТ 2-х местный\n\n"
             "Классический номер для 2 гостей.\n\n"
@@ -139,6 +146,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p_extra": {
         "title": "СТАНДАРТ 2-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-2p-extra.jpg",
         "description": (
             "🏡 СТАНДАРТ 2-х местный + доп.место\n\n"
             "Номер категории стандарт для семьи до 3 человек.\n\n"
@@ -154,6 +162,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_3p": {
         "title": "СТАНДАРТ 3-х местный",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-3p.jpg",
         "description": (
             "🏡 СТАНДАРТ 3-х местный\n\n"
             "Просторный 3-местный номер стандартной категории.\n\n"
@@ -169,6 +178,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_4p": {
         "title": "СТАНДАРТ 4-х местный + доп.место",
+        "photo_url": "https://rusalo4ka.com/images/rooms/std-4p.jpg",
         "description": (
             "🏡 СТАНДАРТ 4-х местный + доп.место\n\n"
             "Семейный просторный номер на 4–5 гостей.\n\n"
@@ -244,12 +254,23 @@ class MaxBotClient:
         chat_id: Optional[Any] = None,
         user_id: Optional[Any] = None,
         text: str = "",
-        buttons: List[List[Dict[str, str]]] = None
+        buttons: List[List[Dict[str, str]]] = None,
+        photo_url: Optional[str] = None
     ) -> bool:
         url = f"{self.base_url}/messages"
 
-        # Формируем структуру кнопок
         attachments = []
+
+        # 1. Прикрепление фото
+        if photo_url:
+            attachments.append({
+                "type": "image",
+                "payload": {
+                    "url": photo_url
+                }
+            })
+
+        # 2. Прикрепление клавиатуры
         if buttons:
             max_buttons = []
             for row in buttons:
@@ -277,68 +298,36 @@ class MaxBotClient:
                 }
             })
 
-        # Способ 1: POST /messages?user_id=... (для личных диалогов с пользователем)
-        if user_id:
-            target_uid = int(user_id) if str(user_id).isdigit() else user_id
-            payload_user = {"text": text}
-            if attachments:
-                payload_user["attachments"] = attachments
-
-            try:
-                async with ClientSession(connector=self._get_connector()) as session:
-                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload_user) as resp:
-                        resp_text = await resp.text()
-                        if resp.status in (200, 201):
-                            logging.info(f"✅ Сообщение успешно отправлено через ?user_id={target_uid}")
-                            return True
-                        logging.warning(f"Попытка ?user_id={target_uid} статус {resp.status}: {resp_text}")
-            except Exception as e:
-                logging.error(f"Ошибка при отправке ?user_id: {e}")
-
-        # Способ 2: POST /messages?chat_id=... (для чатов)
-        if chat_id:
-            target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-            payload_chat = {"text": text}
-            if attachments:
-                payload_chat["attachments"] = attachments
-
-            try:
-                async with ClientSession(connector=self._get_connector()) as session:
-                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload_chat) as resp:
-                        resp_text = await resp.text()
-                        if resp.status in (200, 201):
-                            logging.info(f"✅ Сообщение успешно отправлено через ?chat_id={target_cid}")
-                            return True
-                        logging.warning(f"Попытка ?chat_id={target_cid} статус {resp.status}: {resp_text}")
-            except Exception as e:
-                logging.error(f"Ошибка при отправке ?chat_id: {e}")
-
-        # Способ 3: POST /messages с телом recipient
-        recipient_obj = {}
-        if user_id:
-            recipient_obj["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
-        elif chat_id:
-            recipient_obj["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-
-        payload_body = {
-            "recipient": recipient_obj,
-            "text": text
-        }
+        payload = {"text": text}
         if attachments:
-            payload_body["attachments"] = attachments
+            payload["attachments"] = attachments
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, json=payload_body) as resp:
-                    resp_text = await resp.text()
-                    if resp.status in (200, 201):
-                        logging.info(f"✅ Сообщение успешно отправлено через body recipient={recipient_obj}")
-                        return True
-                    logging.warning(f"Попытка body recipient статус {resp.status}: {resp_text}")
-        except Exception as e:
-            logging.error(f"Ошибка при отправке body recipient: {e}")
+                # Отправка по user_id (личка)
+                if user_id:
+                    target_uid = int(user_id) if str(user_id).isdigit() else user_id
+                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload) as resp:
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Сообщение успешно отправлено через ?user_id={target_uid}")
+                            return True
+                        resp_text = await resp.text()
+                        logging.warning(f"Ошибка отправки ?user_id={target_uid} ({resp.status}): {resp_text}")
 
-        return False
+                # Отправка по chat_id (группа/диалог)
+                if chat_id:
+                    target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload) as resp:
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Сообщение успешно отправлено через ?chat_id={target_cid}")
+                            return True
+                        resp_text = await resp.text()
+                        logging.warning(f"Ошибка отправки ?chat_id={target_cid} ({resp.status}): {resp_text}")
+
+                return False
+        except Exception as e:
+            logging.error(f"Исключение при отправке сообщения в MAX: {e}")
+            return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
@@ -361,7 +350,7 @@ def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
     buttons = []
     for key, data in ROOMS_CATALOG.items():
         buttons.append([{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}])
-    buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
+    buttons.append([{"text": "⬅️️ В главное меню", "payload": "menu_root"}])
     return buttons
 
 def get_single_room_buttons() -> List[List[Dict[str, str]]]:
@@ -426,15 +415,16 @@ async def handle_webhook(request: web.Request):
     user_id_str = str(user_id) if user_id else ""
     chat_id_str = str(chat_id) if chat_id else ""
 
-    async def reply(msg_text: str, btns: list = None):
+    async def reply(msg_text: str, btns: list = None, photo: str = None):
         return await max_bot.send_message(
             chat_id=chat_id,
             user_id=user_id,
             text=msg_text,
-            buttons=btns
+            buttons=btns,
+            photo_url=photo
         )
 
-    # 1. Ответ администратора
+    # 1. Ответ администратора из группы поддержки MAX (через цитирование)
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
@@ -447,7 +437,7 @@ async def handle_webhook(request: web.Request):
             await reply("✅ Ответ успешно доставлен гостю!")
             return web.json_response({"status": "ok"})
 
-    # 2. Обработка вопроса гостя
+    # 2. Обработка ввода вопроса гостем
     if USER_STATES.get(user_id_str) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(user_id_str, None)
@@ -472,7 +462,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. Реакция на старт (/start, приветствие или переход в меню)
+    # 3. Реакция на старт (/start, приветствие или переход в главное меню)
     is_start = (
         text.startswith("/start")
         or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
@@ -500,7 +490,11 @@ async def handle_webhook(request: web.Request):
         room_key = payload.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
-            await reply(room["description"], get_single_room_buttons())
+            await reply(
+                msg_text=room["description"],
+                btns=get_single_room_buttons(),
+                photo=room.get("photo_url")
+            )
 
     elif text == "📝 Забронировать" or payload == "menu_book":
         book_info = (
@@ -528,6 +522,7 @@ async def handle_webhook(request: web.Request):
             "⚽ Спортивный инвентарь (теннис, футбол, шахматы)\n"
             "🥩 Мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
             "🌸 Зеленая зона: 350 кустов роз и 1100 кустов лаванды\n\n"
+            "------------------------------------\n\n"
             "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n\n"
             "🎨 Студия творчества и мастер-классы\n"
             "🧺 Прачечная и гладильная комната\n"
@@ -582,7 +577,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
-        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
