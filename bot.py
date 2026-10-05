@@ -28,11 +28,12 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Номерной фонд базы отдыха «Русалочка»
+# Каталог номеров базы отдыха «Русалочка»
+# Пути photo ведут в локальную папку images/ вашего репозитория
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/kitchen_2p.jpg",
         "capacity": "до 3 человек",
         "price": "от 4 500 ₽ / сутки",
         "description": (
@@ -51,7 +52,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "kitchen_3p": {
         "title": "Номер с кухней (апарт.) 3-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/kitchen_3p.jpg",
         "capacity": "до 4 человек",
         "price": "от 5 500 ₽ / сутки",
         "description": (
@@ -70,7 +71,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_1k_2p": {
         "title": "Эко-домик 1-комнатный 2-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/eco_1k_2p.jpg",
         "capacity": "до 3 человек",
         "price": "от 4 000 ₽ / сутки",
         "description": (
@@ -88,7 +89,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_2k_3p": {
         "title": "Эко-домик 2-комнатный 3-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/eco_2k_3p.jpg",
         "capacity": "до 4 человек",
         "price": "от 6 000 ₽ / сутки",
         "description": (
@@ -107,7 +108,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_brick_3p": {
         "title": "СТАНДАРТ кирпичный домик 3-х местный",
-        "photo": "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_brick_3p.jpg",
         "capacity": "до 3 человек",
         "price": "от 3 500 ₽ / сутки",
         "description": (
@@ -125,7 +126,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_wood_2p": {
         "title": "СТАНДАРТ Деревянный домик 2-х местный",
-        "photo": "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_wood_2p.jpg",
         "capacity": "до 2 человек",
         "price": "от 2 800 ₽ / сутки",
         "description": (
@@ -143,7 +144,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p": {
         "title": "СТАНДАРТ 2-х местный",
-        "photo": "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_2p.jpg",
         "capacity": "до 2 человек",
         "price": "от 3 000 ₽ / сутки",
         "description": (
@@ -161,7 +162,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p_extra": {
         "title": "СТАНДАРТ 2-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1568495248636-6432b97bd949?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_2p_extra.jpg",
         "capacity": "до 3 человек",
         "price": "от 3 300 ₽ / сутки",
         "description": (
@@ -179,7 +180,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_3p": {
         "title": "СТАНДАРТ 3-х местный",
-        "photo": "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_3p.jpg",
         "capacity": "до 3 человек",
         "price": "от 3 700 ₽ / сутки",
         "description": (
@@ -197,7 +198,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_4p": {
         "title": "СТАНДАРТ 4-х местный + доп.место",
-        "photo": "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=800&q=80",
+        "photo": "/images/std_4p.jpg",
         "capacity": "до 5 человек",
         "price": "от 4 600 ₽ / сутки",
         "description": (
@@ -346,7 +347,7 @@ def get_single_room_buttons(room_key: str) -> List[List[Dict[str, str]]]:
     return [
         [{"text": "📱 Посмотреть фото в Mini Web", "url": f"{WEBAPP_URL}#room-{room_key}"}],
         [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
-        [{"text": "⬅️ Назад к списку", "payload": "menu_rooms"}]
+        [{"text": "⬅️ Назад к списку номеров", "payload": "menu_rooms"}]
     ]
 
 def get_faq_buttons() -> List[List[Dict[str, str]]]:
@@ -412,7 +413,7 @@ async def handle_webhook(request: web.Request):
             buttons=btns
         )
 
-    # 1. Ответ администратора из группы поддержки
+    # 1. Ответ администратора из группы поддержки (через Reply)
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
@@ -470,7 +471,7 @@ async def handle_webhook(request: web.Request):
         await reply(welcome_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
 
-    elif text == "🏡 Наши номера" or payload == "menu_rooms":
+    elif text == "🏡 Наши номера" or payload == "menu_rooms" or text == "🏡 Список номеров":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию или откройте визуальную витрину с фото:"
         await reply(rooms_text, get_rooms_list_buttons())
 
@@ -500,7 +501,7 @@ async def handle_webhook(request: web.Request):
         ]
         await reply(book_info, buttons)
 
-    elif text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
+    elif text == "🎡 Услуги и сервис" or text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
         infra_text = (
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
             "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n"
@@ -533,7 +534,7 @@ async def handle_webhook(request: web.Request):
     elif text == "⭐ Отзывы" or payload == "menu_reviews":
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
         ]
         await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
 
@@ -591,7 +592,7 @@ async def handle_webhook(request: web.Request):
             [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
-    elif text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
+    elif text == "💬 Задать вопрос администратору" or text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
         USER_STATES[user_id] = "waiting_feedback"
         prompt = (
             "💬 Задать вопрос администратору базы отдыха\n\n"
@@ -602,14 +603,23 @@ async def handle_webhook(request: web.Request):
     return web.json_response({"status": "ok"})
 
 # =====================================================================
-# 5. ВСТРОЕННОЕ MINI WEB APP С ФОТОГРАФИЯМИ И КАТАЛОГОМ
+# 5. MINI WEB APP С ПОДДЕРЖКОЙ ВАШИХ ФОТОГРАФИЙ
 # =====================================================================
 async def handle_get(request: web.Request):
     cards_html = ""
     for key, room in ROOMS_CATALOG.items():
+        photo_path = room.get("photo", "")
+        # Проверяем наличие локального файла на диске
+        local_file_exists = os.path.exists(photo_path.lstrip("/")) if photo_path.startswith("/images/") else bool(photo_path)
+        
+        img_tag = (
+            f'<img src="{photo_path}" alt="{room["title"]}" class="room-img" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';" loading="lazy">'
+            f'<div class="img-placeholder" style="{"display:none" if local_file_exists else "display:flex"}">🏖 Фото базы отдыха «Русалочка»</div>'
+        )
+
         cards_html += f"""
         <div class="card" id="room-{key}">
-            <img src="{room['photo']}" alt="{room['title']}" class="room-img" loading="lazy">
+            {img_tag}
             <div class="card-content">
                 <div class="badge">🍽 с 3-х разовым питанием</div>
                 <h3 class="room-title">{room['title']}</h3>
@@ -628,7 +638,7 @@ async def handle_get(request: web.Request):
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>База отдыха «Русалочка» | Фото номеров</title>
+        <title>База отдыха «Русалочка» | Номера</title>
         <style>
             * {{ box-sizing: border-box; margin: 0; padding: 0; }}
             body {{
@@ -672,6 +682,17 @@ async def handle_get(request: web.Request):
                 height: 220px;
                 object-fit: cover;
                 display: block;
+            }}
+            .img-placeholder {{
+                width: 100%;
+                height: 160px;
+                background: #0f172a;
+                color: #64748b;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 14px;
+                font-weight: 600;
             }}
             .card-content {{
                 padding: 18px;
@@ -752,6 +773,7 @@ async def handle_get(request: web.Request):
     return web.Response(text=full_html, content_type="text/html", status=200)
 
 async def on_startup(app_instance: web.Application):
+    os.makedirs("images", exist_ok=True)
     logging.info("Проверка токена в MAX API...")
     await max_bot.get_me()
     logging.info(f"Регистрируем подписку на Webhook: {WEBHOOK_URL}...")
@@ -759,6 +781,10 @@ async def on_startup(app_instance: web.Application):
 
 app = web.Application()
 app.on_startup.append(on_startup)
+
+# Подключение раздачи файлов из локальной папки images/
+os.makedirs("images", exist_ok=True)
+app.router.add_static("/images", path="images", name="images")
 
 app.router.add_get("/", handle_get)
 app.router.add_post("/", handle_webhook)
