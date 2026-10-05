@@ -28,12 +28,11 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Каталог номеров базы отдыха «Русалочка»
-# Пути photo ведут в локальную папку images/ вашего репозитория
+# Номерной фонд базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
-        "photo": "/images/kitchen_2p.jpg",
+        "folder": "kitchen_2p",
         "capacity": "до 3 человек",
         "price": "от 4 500 ₽ / сутки",
         "description": (
@@ -52,7 +51,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "kitchen_3p": {
         "title": "Номер с кухней (апарт.) 3-х местный + доп.место",
-        "photo": "/images/kitchen_3p.jpg",
+        "folder": "kitchen_3p",
         "capacity": "до 4 человек",
         "price": "от 5 500 ₽ / сутки",
         "description": (
@@ -71,7 +70,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_1k_2p": {
         "title": "Эко-домик 1-комнатный 2-х местный + доп.место",
-        "photo": "/images/eco_1k_2p.jpg",
+        "folder": "eco_1k_2p",
         "capacity": "до 3 человек",
         "price": "от 4 000 ₽ / сутки",
         "description": (
@@ -89,7 +88,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_2k_3p": {
         "title": "Эко-домик 2-комнатный 3-х местный + доп.место",
-        "photo": "/images/eco_2k_3p.jpg",
+        "folder": "eco_2k_3p",
         "capacity": "до 4 человек",
         "price": "от 6 000 ₽ / сутки",
         "description": (
@@ -108,7 +107,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_brick_3p": {
         "title": "СТАНДАРТ кирпичный домик 3-х местный",
-        "photo": "/images/std_brick_3p.jpg",
+        "folder": "std_brick_3p",
         "capacity": "до 3 человек",
         "price": "от 3 500 ₽ / сутки",
         "description": (
@@ -126,7 +125,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_wood_2p": {
         "title": "СТАНДАРТ Деревянный домик 2-х местный",
-        "photo": "/images/std_wood_2p.jpg",
+        "folder": "std_wood_2p",
         "capacity": "до 2 человек",
         "price": "от 2 800 ₽ / сутки",
         "description": (
@@ -144,7 +143,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p": {
         "title": "СТАНДАРТ 2-х местный",
-        "photo": "/images/std_2p.jpg",
+        "folder": "std_2p",
         "capacity": "до 2 человек",
         "price": "от 3 000 ₽ / сутки",
         "description": (
@@ -162,7 +161,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p_extra": {
         "title": "СТАНДАРТ 2-х местный + доп.место",
-        "photo": "/images/std_2p_extra.jpg",
+        "folder": "std_2p_extra",
         "capacity": "до 3 человек",
         "price": "от 3 300 ₽ / сутки",
         "description": (
@@ -180,7 +179,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_3p": {
         "title": "СТАНДАРТ 3-х местный",
-        "photo": "/images/std_3p.jpg",
+        "folder": "std_3p",
         "capacity": "до 3 человек",
         "price": "от 3 700 ₽ / сутки",
         "description": (
@@ -198,7 +197,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_4p": {
         "title": "СТАНДАРТ 4-х местный + доп.место",
-        "photo": "/images/std_4p.jpg",
+        "folder": "std_4p",
         "capacity": "до 5 человек",
         "price": "от 4 600 ₽ / сутки",
         "description": (
@@ -217,7 +216,27 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 # =====================================================================
-# 2. КЛИЕНТ API MAX (OneMe Bot API)
+# 2. ПОИСК ФОТОГРАФИЙ (.WEBP / .JPG / .PNG) В ПАПКЕ IMAGES
+# =====================================================================
+def get_room_photos(folder_name: str) -> List[str]:
+    """Сканирует папку images/<folder_name> и возвращает URL всех изображений"""
+    folder_path = os.path.join("images", folder_name)
+    if not os.path.isdir(folder_path):
+        return []
+
+    photos = []
+    valid_extensions = ('.webp', '.jpg', '.jpeg', '.png')
+    try:
+        files = sorted(os.listdir(folder_path))
+        for f in files:
+            if f.lower().endswith(valid_extensions):
+                photos.append(f"/images/{folder_name}/{f}")
+    except Exception as e:
+        logging.error(f"Ошибка чтения папки {folder_path}: {e}")
+    return photos
+
+# =====================================================================
+# 3. КЛИЕНТ API MAX (OneMe Bot API)
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -319,7 +338,7 @@ class MaxBotClient:
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
 # =====================================================================
-# 3. КНОПКИ ДЛЯ ЧАТА
+# 4. КНОПКИ ДЛЯ ЧАТА
 # =====================================================================
 def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
     return [
@@ -345,7 +364,7 @@ def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
 
 def get_single_room_buttons(room_key: str) -> List[List[Dict[str, str]]]:
     return [
-        [{"text": "📱 Посмотреть фото в Mini Web", "url": f"{WEBAPP_URL}#room-{room_key}"}],
+        [{"text": "📱 Посмотреть все фото номера", "url": f"{WEBAPP_URL}#room-{room_key}"}],
         [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
         [{"text": "⬅️ Назад к списку номеров", "payload": "menu_rooms"}]
     ]
@@ -363,7 +382,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА MAX
+# 5. ОБРАБОТЧИК ВЕБХУКА MAX
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -471,7 +490,7 @@ async def handle_webhook(request: web.Request):
         await reply(welcome_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
 
-    elif text == "🏡 Наши номера" or payload == "menu_rooms" or text == "🏡 Список номеров":
+    elif text in ["🏡 Наши номера", "🏡 Список номеров"] or payload == "menu_rooms":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию или откройте визуальную витрину с фото:"
         await reply(rooms_text, get_rooms_list_buttons())
 
@@ -501,7 +520,7 @@ async def handle_webhook(request: web.Request):
         ]
         await reply(book_info, buttons)
 
-    elif text == "🎡 Услуги и сервис" or text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
+    elif text in ["🎡 Услуги и сервис", "🎡 Инфраструктура и услуги"] or payload == "menu_infra":
         infra_text = (
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
             "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n"
@@ -534,7 +553,7 @@ async def handle_webhook(request: web.Request):
     elif text == "⭐ Отзывы" or payload == "menu_reviews":
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
 
@@ -567,7 +586,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера производится после перечисления предоплаты (30% от полной стоимости проживания)."
-        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_refund":
         ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до заезда, после — взимается 100% от суммы предоплаты."
@@ -592,7 +611,7 @@ async def handle_webhook(request: web.Request):
             [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
-    elif text == "💬 Задать вопрос администратору" or text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
+    elif text in ["💬 Задать вопрос администратору", "💬 Остались вопросы? Напишите нам"] or payload == "menu_feedback":
         USER_STATES[user_id] = "waiting_feedback"
         prompt = (
             "💬 Задать вопрос администратору базы отдыха\n\n"
@@ -603,23 +622,33 @@ async def handle_webhook(request: web.Request):
     return web.json_response({"status": "ok"})
 
 # =====================================================================
-# 5. MINI WEB APP С ПОДДЕРЖКОЙ ВАШИХ ФОТОГРАФИЙ
+# 6. MINI WEB APP С МУЛЬТИ-ФОТО ГАЛЕРЕЕЙ (.WEBP)
 # =====================================================================
 async def handle_get(request: web.Request):
     cards_html = ""
     for key, room in ROOMS_CATALOG.items():
-        photo_path = room.get("photo", "")
-        # Проверяем наличие локального файла на диске
-        local_file_exists = os.path.exists(photo_path.lstrip("/")) if photo_path.startswith("/images/") else bool(photo_path)
+        folder_name = room.get("folder", key)
+        photos = get_room_photos(folder_name)
         
-        img_tag = (
-            f'<img src="{photo_path}" alt="{room["title"]}" class="room-img" onerror="this.style.display=\'none\'; this.nextElementSibling.style.display=\'flex\';" loading="lazy">'
-            f'<div class="img-placeholder" style="{"display:none" if local_file_exists else "display:flex"}">🏖 Фото базы отдыха «Русалочка»</div>'
-        )
+        # Галерея фотографий с горизонтальной прокруткой и отображением количества
+        if photos:
+            photos_count = len(photos)
+            gallery_inner = "".join([
+                f'<img src="{p}" alt="{room["title"]}" class="gallery-img" loading="lazy">' 
+                for p in photos
+            ])
+            gallery_tag = f'''
+            <div class="gallery-wrapper">
+                <div class="gallery-container">{gallery_inner}</div>
+                <div class="photo-counter">📸 {photos_count} фото (листайте вправо)</div>
+            </div>
+            '''
+        else:
+            gallery_tag = '<div class="img-placeholder">🏖 Фото базы отдыха «Русалочка»</div>'
 
         cards_html += f"""
         <div class="card" id="room-{key}">
-            {img_tag}
+            {gallery_tag}
             <div class="card-content">
                 <div class="badge">🍽 с 3-х разовым питанием</div>
                 <h3 class="room-title">{room['title']}</h3>
@@ -677,11 +706,41 @@ async def handle_get(request: web.Request):
                 box-shadow: 0 10px 25px rgba(0,0,0,0.4);
                 border: 1px solid #334155;
             }}
-            .room-img {{
-                width: 100%;
-                height: 220px;
+            .gallery-wrapper {{
+                position: relative;
+                background: #0f172a;
+            }}
+            .gallery-container {{
+                display: flex;
+                overflow-x: auto;
+                scroll-snap-type: x mandatory;
+                gap: 10px;
+                padding: 12px;
+                scrollbar-width: thin;
+                scrollbar-color: #38bdf8 #1e293b;
+                -webkit-overflow-scrolling: touch;
+            }}
+            .gallery-container::-webkit-scrollbar {{
+                height: 5px;
+            }}
+            .gallery-container::-webkit-scrollbar-thumb {{
+                background: #38bdf8;
+                border-radius: 3px;
+            }}
+            .gallery-img {{
+                flex: 0 0 88%;
+                height: 230px;
                 object-fit: cover;
+                border-radius: 12px;
+                scroll-snap-align: center;
                 display: block;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            }}
+            .photo-counter {{
+                font-size: 11px;
+                color: #94a3b8;
+                padding: 0 14px 10px 14px;
+                text-align: right;
             }}
             .img-placeholder {{
                 width: 100%;
@@ -782,7 +841,7 @@ async def on_startup(app_instance: web.Application):
 app = web.Application()
 app.on_startup.append(on_startup)
 
-# Подключение раздачи файлов из локальной папки images/
+# Подключение статической раздачи папки images со всеми её подпапками
 os.makedirs("images", exist_ok=True)
 app.router.add_static("/images", path="images", name="images")
 
