@@ -28,7 +28,6 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Каталог номеров базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -247,11 +246,6 @@ class MaxBotClient:
         text: str = "",
         buttons: List[List[Dict[str, str]]] = None
     ) -> bool:
-        """
-        Отправка сообщения в MAX API.
-        Поддерживает передачу через recipient объект (chat_id / user_id)
-        и через query параметры (chat_id=... или user_id=...).
-        """
         url = f"{self.base_url}/messages"
 
         # Формируем структуру кнопок
@@ -283,66 +277,68 @@ class MaxBotClient:
                 }
             })
 
-        # Попытка 1: через query-параметр chat_id или user_id
-        params = {}
-        if chat_id:
-            params["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-        elif user_id:
-            params["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
+        # Способ 1: POST /messages?user_id=... (для личных диалогов с пользователем)
+        if user_id:
+            target_uid = int(user_id) if str(user_id).isdigit() else user_id
+            payload_user = {"text": text}
+            if attachments:
+                payload_user["attachments"] = attachments
 
-        # Формируем тело сообщения (MAX API OneMe)
-        payload: Dict[str, Any] = {
+            try:
+                async with ClientSession(connector=self._get_connector()) as session:
+                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload_user) as resp:
+                        resp_text = await resp.text()
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Сообщение успешно отправлено через ?user_id={target_uid}")
+                            return True
+                        logging.warning(f"Попытка ?user_id={target_uid} статус {resp.status}: {resp_text}")
+            except Exception as e:
+                logging.error(f"Ошибка при отправке ?user_id: {e}")
+
+        # Способ 2: POST /messages?chat_id=... (для чатов)
+        if chat_id:
+            target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+            payload_chat = {"text": text}
+            if attachments:
+                payload_chat["attachments"] = attachments
+
+            try:
+                async with ClientSession(connector=self._get_connector()) as session:
+                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload_chat) as resp:
+                        resp_text = await resp.text()
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Сообщение успешно отправлено через ?chat_id={target_cid}")
+                            return True
+                        logging.warning(f"Попытка ?chat_id={target_cid} статус {resp.status}: {resp_text}")
+            except Exception as e:
+                logging.error(f"Ошибка при отправке ?chat_id: {e}")
+
+        # Способ 3: POST /messages с телом recipient
+        recipient_obj = {}
+        if user_id:
+            recipient_obj["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
+        elif chat_id:
+            recipient_obj["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+
+        payload_body = {
+            "recipient": recipient_obj,
             "text": text
         }
         if attachments:
-            payload["attachments"] = attachments
+            payload_body["attachments"] = attachments
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                # 1. Запрос с query-параметрами
-                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
+                async with session.post(url, headers=self.headers, json=payload_body) as resp:
                     resp_text = await resp.text()
                     if resp.status in (200, 201):
-                        logging.info(f"Успешно отправлено в MAX (метод 1, params={params})")
+                        logging.info(f"✅ Сообщение успешно отправлено через body recipient={recipient_obj}")
                         return True
-                    logging.warning(f"Метод 1 не сработал ({resp.status}): {resp_text}")
-
-                # 2. Запасной вариант: передача получателя внутри JSON-тела (recipient)
-                recipient_obj = {}
-                if user_id:
-                    recipient_obj["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
-                if chat_id:
-                    recipient_obj["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-
-                payload_v2 = {
-                    "recipient": recipient_obj,
-                    "body": {
-                        "text": text
-                    }
-                }
-                if attachments:
-                    payload_v2["body"]["attachments"] = attachments
-
-                async with session.post(url, headers=self.headers, json=payload_v2) as resp2:
-                    resp_text2 = await resp2.text()
-                    if resp2.status in (200, 201):
-                        logging.info(f"Успешно отправлено в MAX (метод 2, recipient={recipient_obj})")
-                        return True
-                    logging.warning(f"Метод 2 не сработал ({resp2.status}): {resp_text2}")
-
-                # 3. Запасной вариант: query user_id (для личных диалогов)
-                if user_id:
-                    async with session.post(url, headers=self.headers, params={"user_id": user_id}, json=payload) as resp3:
-                        resp_text3 = await resp3.text()
-                        if resp3.status in (200, 201):
-                            logging.info(f"Успешно отправлено в MAX (метод 3, user_id={user_id})")
-                            return True
-                        logging.warning(f"Метод 3 не сработал ({resp3.status}): {resp_text3}")
-
-                return False
+                    logging.warning(f"Попытка body recipient статус {resp.status}: {resp_text}")
         except Exception as e:
-            logging.error(f"Исключение при отправке сообщения в MAX: {e}")
-            return False
+            logging.error(f"Ошибка при отправке body recipient: {e}")
+
+        return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
@@ -405,11 +401,9 @@ async def handle_webhook(request: web.Request):
     callback = data.get("callback", {})
     callback_id = callback.get("callback_id")
 
-    # Снятие индикатора ожидания с кнопки
     if callback_id:
         await max_bot.answer_callback(callback_id)
 
-    # Идентификаторы
     chat_id = (
         recipient.get("chat_id")
         or message.get("chat_id")
@@ -423,7 +417,6 @@ async def handle_webhook(request: web.Request):
     )
     sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
-    # Текст сообщения или payload инлайн-кнопки
     text = (body.get("text") or message.get("text") or "").strip()
     payload = callback.get("payload") or data.get("payload") or ""
 
@@ -433,7 +426,6 @@ async def handle_webhook(request: web.Request):
     user_id_str = str(user_id) if user_id else ""
     chat_id_str = str(chat_id) if chat_id else ""
 
-    # Вспомогательная функция отправки
     async def reply(msg_text: str, btns: list = None):
         return await max_bot.send_message(
             chat_id=chat_id,
@@ -442,7 +434,7 @@ async def handle_webhook(request: web.Request):
             buttons=btns
         )
 
-    # 1. Ответ администратора через Reply
+    # 1. Ответ администратора
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
@@ -455,7 +447,7 @@ async def handle_webhook(request: web.Request):
             await reply("✅ Ответ успешно доставлен гостю!")
             return web.json_response({"status": "ok"})
 
-    # 2. Обработка ввода вопроса гостем
+    # 2. Обработка вопроса гостя
     if USER_STATES.get(user_id_str) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(user_id_str, None)
@@ -480,7 +472,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. Реакция на старт (/start, приветствие или переход в главное меню)
+    # 3. Реакция на старт (/start, приветствие или переход в меню)
     is_start = (
         text.startswith("/start")
         or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
@@ -533,14 +525,9 @@ async def handle_webhook(request: web.Request):
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
             "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n\n"
             "👶 Детская площадка\n"
-            "Игровой комплекс для малышей на свежем воздухе.\n\n"
-            "⚽ Спортивный инвентарь\n"
-            "Мячи, ракетки, настольный теннис, шахматы, шашки и настольный футбол — всё для активного отдыха.\n\n"
-            "🥩 Мангальная зона\n"
-            "Оборудованная зона отдыха с бесплатным предоставлением решеток, шампуров, печи и казана (12 л).\n\n"
-            "🌸 Зеленая зона\n"
-            "Зеленая территория: 350 кустов роз и 1100 кустов лаванды.\n\n"
-            "------------------------------------\n\n"
+            "⚽ Спортивный инвентарь (теннис, футбол, шахматы)\n"
+            "🥩 Мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
+            "🌸 Зеленая зона: 350 кустов роз и 1100 кустов лаванды\n\n"
             "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n\n"
             "🎨 Студия творчества и мастер-классы\n"
             "🧺 Прачечная и гладильная комната\n"
@@ -595,7 +582,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
-        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
