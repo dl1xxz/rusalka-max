@@ -1,7 +1,7 @@
 import os
 import re
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from aiohttp import web, ClientSession, TCPConnector
 from dotenv import load_dotenv
@@ -186,7 +186,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 # =====================================================================
-# 2. КЛИЕНТ API MAX (С ПОДДЕРЖКОЙ ФОРМАТА ATTACHMENTS И KEYBOARD)
+# 2. КЛИЕНТ API MAX (OneMe Bot API)
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -224,67 +224,130 @@ class MaxBotClient:
         except Exception as e:
             logging.error(f"Не удалось отправить запрос подписки: {e}")
 
+    async def answer_callback(self, callback_id: str, notification: str = None) -> None:
+        if not callback_id:
+            return
+        url = f"{self.base_url}/answers"
+        params = {"callback_id": callback_id}
+        payload = {}
+        if notification:
+            payload["notification"] = notification
+
+        try:
+            async with ClientSession(connector=self._get_connector()) as session:
+                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
+                    pass
+        except Exception as e:
+            logging.error(f"Ошибка answer_callback: {e}")
+
     async def send_message(
         self,
-        chat_id: Any,
-        text: str,
-        buttons: List[List[Dict[str, str]]] = None,
-        keyboard_type: str = "inline"
+        chat_id: Optional[Any] = None,
+        user_id: Optional[Any] = None,
+        text: str = "",
+        buttons: List[List[Dict[str, str]]] = None
     ) -> bool:
+        """
+        Отправка сообщения в MAX API.
+        Поддерживает передачу через recipient объект (chat_id / user_id)
+        и через query параметры (chat_id=... или user_id=...).
+        """
         url = f"{self.base_url}/messages"
-        payload: Dict[str, Any] = {
-            "chat_id": int(chat_id) if str(chat_id).isdigit() else chat_id,
-            "text": text
-        }
 
-        # В MAX клавиатура передается в attachments
+        # Формируем структуру кнопок
+        attachments = []
         if buttons:
             max_buttons = []
             for row in buttons:
                 new_row = []
                 for b in row:
-                    btn_data: Dict[str, str] = {"text": b.get("text", "")}
+                    btn_text = b.get("text", "")
                     if "url" in b:
-                        btn_data["type"] = "link"
-                        btn_data["url"] = b["url"]
+                        new_row.append({
+                            "type": "link",
+                            "text": btn_text,
+                            "url": b["url"]
+                        })
                     else:
-                        btn_data["type"] = "callback"
-                        btn_data["payload"] = b.get("payload", b.get("text", ""))
-                    new_row.append(btn_data)
+                        new_row.append({
+                            "type": "callback",
+                            "text": btn_text,
+                            "payload": b.get("payload", btn_text)
+                        })
                 max_buttons.append(new_row)
 
-            payload["attachments"] = [
-                {
-                    "type": "inline_keyboard",
-                    "payload": {
-                        "buttons": max_buttons
-                    }
+            attachments.append({
+                "type": "inline_keyboard",
+                "payload": {
+                    "buttons": max_buttons
                 }
-            ]
+            })
+
+        # Попытка 1: через query-параметр chat_id или user_id
+        params = {}
+        if chat_id:
+            params["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+        elif user_id:
+            params["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
+
+        # Формируем тело сообщения (MAX API OneMe)
+        payload: Dict[str, Any] = {
+            "text": text
+        }
+        if attachments:
+            payload["attachments"] = attachments
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, json=payload) as resp:
+                # 1. Запрос с query-параметрами
+                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
                     resp_text = await resp.text()
-                    if resp.status not in (200, 201):
-                        logging.warning(f"Ошибка отправки сообщения ({resp.status}): {resp_text}")
-                    else:
-                        logging.info(f"Успешно отправлено сообщение в чат {chat_id}")
-                    return resp.status in (200, 201)
+                    if resp.status in (200, 201):
+                        logging.info(f"Успешно отправлено в MAX (метод 1, params={params})")
+                        return True
+                    logging.warning(f"Метод 1 не сработал ({resp.status}): {resp_text}")
+
+                # 2. Запасной вариант: передача получателя внутри JSON-тела (recipient)
+                recipient_obj = {}
+                if user_id:
+                    recipient_obj["user_id"] = int(user_id) if str(user_id).isdigit() else user_id
+                if chat_id:
+                    recipient_obj["chat_id"] = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+
+                payload_v2 = {
+                    "recipient": recipient_obj,
+                    "body": {
+                        "text": text
+                    }
+                }
+                if attachments:
+                    payload_v2["body"]["attachments"] = attachments
+
+                async with session.post(url, headers=self.headers, json=payload_v2) as resp2:
+                    resp_text2 = await resp2.text()
+                    if resp2.status in (200, 201):
+                        logging.info(f"Успешно отправлено в MAX (метод 2, recipient={recipient_obj})")
+                        return True
+                    logging.warning(f"Метод 2 не сработал ({resp2.status}): {resp_text2}")
+
+                # 3. Запасной вариант: query user_id (для личных диалогов)
+                if user_id:
+                    async with session.post(url, headers=self.headers, params={"user_id": user_id}, json=payload) as resp3:
+                        resp_text3 = await resp3.text()
+                        if resp3.status in (200, 201):
+                            logging.info(f"Успешно отправлено в MAX (метод 3, user_id={user_id})")
+                            return True
+                        logging.warning(f"Метод 3 не сработал ({resp3.status}): {resp_text3}")
+
+                return False
         except Exception as e:
             logging.error(f"Исключение при отправке сообщения в MAX: {e}")
             return False
 
-    async def send_document(self, chat_id: Any, file_path: str, caption: str = "") -> bool:
-        return await self.send_message(
-            chat_id=chat_id,
-            text=f"{caption}\n\n📄 Ознакомиться с правилами онлайн: https://rusalo4ka.com/"
-        )
-
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
 # =====================================================================
-# 3. КЛАВИАТУРЫ
+# 3. КНОПКИ
 # =====================================================================
 def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
     return [
@@ -318,7 +381,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "При бронировании нужно вносить предоплату?", "payload": "faq_prepayment"}],
         [{"text": "Предоплата возвратная?", "payload": "faq_refund"}],
         [{"text": "Возможно размещение с животными?", "payload": "faq_pets"}],
-        [{"text": "📄 Посмотреть полные правила (PDF)", "payload": "faq_pdf"}],
+        [{"text": "📄 Посмотреть правила (PDF)", "payload": "faq_pdf"}],
         [{"text": "💬 Задать свой вопрос", "payload": "menu_feedback"}],
         [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
     ]
@@ -338,29 +401,48 @@ async def handle_webhook(request: web.Request):
     message = data.get("message", {})
     body = message.get("body", {})
     recipient = message.get("recipient", {})
-    sender = message.get("sender", {})
+    sender = message.get("sender", {}) or data.get("user", {})
     callback = data.get("callback", {})
+    callback_id = callback.get("callback_id")
 
-    # Извлечение chat_id диалога
+    # Снятие индикатора ожидания с кнопки
+    if callback_id:
+        await max_bot.answer_callback(callback_id)
+
+    # Идентификаторы
     chat_id = (
         recipient.get("chat_id")
         or message.get("chat_id")
         or callback.get("chat_id")
         or data.get("chat_id")
     )
+    user_id = (
+        sender.get("user_id")
+        or callback.get("user_id")
+        or data.get("user_id")
+    )
+    sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
-    # Извлечение sender_id и текста
-    sender_id = str(sender.get("user_id") or callback.get("user_id") or "")
-    sender_name = sender.get("name") or "Гость"
+    # Текст сообщения или payload инлайн-кнопки
     text = (body.get("text") or message.get("text") or "").strip()
     payload = callback.get("payload") or data.get("payload") or ""
 
-    if not chat_id:
+    if not chat_id and not user_id:
         return web.json_response({"status": "ok"})
 
-    chat_id_str = str(chat_id)
+    user_id_str = str(user_id) if user_id else ""
+    chat_id_str = str(chat_id) if chat_id else ""
 
-    # 1. Ответ администратора из группы поддержки MAX (через Reply)
+    # Вспомогательная функция отправки
+    async def reply(msg_text: str, btns: list = None):
+        return await max_bot.send_message(
+            chat_id=chat_id,
+            user_id=user_id,
+            text=msg_text,
+            buttons=btns
+        )
+
+    # 1. Ответ администратора через Reply
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
@@ -369,43 +451,39 @@ async def handle_webhook(request: web.Request):
         if match:
             target_user_id = match.group(1)
             admin_answer = f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n{text}"
-            await max_bot.send_message(chat_id=target_user_id, text=admin_answer)
-            await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!")
+            await max_bot.send_message(user_id=target_user_id, text=admin_answer)
+            await reply("✅ Ответ успешно доставлен гостю!")
             return web.json_response({"status": "ok"})
 
     # 2. Обработка ввода вопроса гостем
-    if USER_STATES.get(sender_id) == "waiting_feedback":
+    if USER_STATES.get(user_id_str) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
-            USER_STATES.pop(sender_id, None)
-            await max_bot.send_message(
-                chat_id=chat_id,
-                text="Отправка вопроса отменена.",
-                buttons=get_main_menu_buttons()
-            )
+            USER_STATES.pop(user_id_str, None)
+            await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
 
-        USER_STATES.pop(sender_id, None)
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text="✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог в ближайшее время.",
-            buttons=get_main_menu_buttons()
+        USER_STATES.pop(user_id_str, None)
+        await reply(
+            "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог в ближайшее время.",
+            get_main_menu_buttons()
         )
 
         if ADMIN_CHAT_ID != "0":
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ В MAX\n"
                 f"👤 Гость: {sender_name}\n"
-                f"🆔 ID: {sender_id}\n\n"
+                f"🆔 ID: {user_id_str}\n\n"
                 f"💬 Вопрос:\n{text}\n\n"
                 f"👉 Чтобы ответить гостю, ответьте цитатой (Reply) на это сообщение.\n"
-                f"#user_{sender_id}"
+                f"#user_{user_id_str}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. Реакция на старт (/start, кнопка старта или главное меню)
+    # 3. Реакция на старт (/start, приветствие или переход в главное меню)
     is_start = (
         text.startswith("/start")
+        or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
         or payload == "menu_root"
         or update_type in ["bot_started", "chat_started"]
     )
@@ -417,32 +495,20 @@ async def handle_webhook(request: web.Request):
             "Ухоженная зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
             "📅 Период работы: с 15 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
-            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇"
+            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️"
         )
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=welcome_text,
-            buttons=get_main_menu_buttons()
-        )
+        await reply(welcome_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
 
     elif text == "🏡 Наши номера" or payload == "menu_rooms":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию для просмотра описания и стоимости:"
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=rooms_text,
-            buttons=get_rooms_list_buttons()
-        )
+        await reply(rooms_text, get_rooms_list_buttons())
 
     elif payload.startswith("view_room_"):
         room_key = payload.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
-            await max_bot.send_message(
-                chat_id=chat_id,
-                text=room["description"],
-                buttons=get_single_room_buttons()
-            )
+            await reply(room["description"], get_single_room_buttons())
 
     elif text == "📝 Забронировать" or payload == "menu_book":
         book_info = (
@@ -460,7 +526,7 @@ async def handle_webhook(request: web.Request):
             [{"text": "💳 Перейти к бронированию и оплате", "url": BOOKING_URL}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id=chat_id, text=book_info, buttons=buttons)
+        await reply(book_info, buttons)
 
     elif text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
         infra_text = (
@@ -480,11 +546,7 @@ async def handle_webhook(request: web.Request):
             "🧺 Прачечная и гладильная комната\n"
             "⚡ Зарядная станция для электромобилей GB/T 7kwt (Цена 22₽ / 1 кВт.ч)."
         )
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=infra_text,
-            buttons=get_main_menu_buttons()
-        )
+        await reply(infra_text, get_main_menu_buttons())
 
     elif text == "🌴 О базе" or payload == "menu_about":
         about_text = (
@@ -499,18 +561,14 @@ async def handle_webhook(request: web.Request):
             [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id=chat_id, text=about_text, buttons=buttons)
+        await reply(about_text, buttons)
 
     elif text == "⭐ Отзывы" or payload == "menu_reviews":
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text="⭐ Отзывы наших гостей на Яндекс.Картах:",
-            buttons=buttons
-        )
+        await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
 
     elif text == "📞 Контакты и локация" or payload == "menu_contacts":
         contacts_text = (
@@ -526,46 +584,26 @@ async def handle_webhook(request: web.Request):
             [{"text": "💬 Задать вопрос в чате", "payload": "menu_feedback"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id=chat_id, text=contacts_text, buttons=buttons)
+        await reply(contacts_text, buttons)
 
     elif text == "❓ Вопросы и ответы (FAQ)" or payload == "menu_faq":
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text="Часто задаваемые вопросы:",
-            buttons=get_faq_buttons()
-        )
+        await reply("Часто задаваемые вопросы:", get_faq_buttons())
 
     elif payload == "faq_checkin":
         ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы Вас заселим раньше."
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
-        )
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
-        )
+        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
-        )
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_refund":
         ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до забронированной даты, после - взимается 100% от размера предоплаты. В экстренном случае обращайтесь на электронную почту."
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
-        )
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_pets":
         ans = (
@@ -575,29 +613,24 @@ async def handle_webhook(request: web.Request):
             "— Выгул собак на территории Базы отдыха «Русалочка» ЗАПРЕЩЕН."
         )
         buttons = [
-            [{"text": "📄 Посмотреть правила проживания", "payload": "faq_pdf"}],
+            [{"text": "📄 Посмотреть правила", "payload": "faq_pdf"}],
             [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
         ]
-        await max_bot.send_message(chat_id=chat_id, text=ans, buttons=buttons)
+        await reply(ans, buttons)
 
     elif payload == "faq_pdf":
-        await max_bot.send_document(
-            chat_id=chat_id,
-            file_path=PDF_RULES_PATH,
-            caption="📄 Официальные правила проживания на базе отдыха «Русалочка»"
+        await reply(
+            "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
+            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
     elif text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
-        USER_STATES[sender_id] = "waiting_feedback"
+        USER_STATES[user_id_str] = "waiting_feedback"
         prompt = (
             "💬 Задать вопрос администратору базы отдыха\n\n"
             "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
         )
-        await max_bot.send_message(
-            chat_id=chat_id,
-            text=prompt,
-            buttons=get_cancel_buttons()
-        )
+        await reply(prompt, get_cancel_buttons())
 
     return web.json_response({"status": "ok"})
 
