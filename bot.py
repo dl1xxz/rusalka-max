@@ -28,7 +28,6 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Номерной фонд базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -215,11 +214,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# =====================================================================
-# 2. ПОИСК ФОТОГРАФИЙ (.WEBP / .JPG / .PNG) В ПАПКЕ IMAGES
-# =====================================================================
 def get_room_photos(folder_name: str) -> List[str]:
-    """Сканирует папку images/<folder_name> и возвращает URL всех изображений"""
     folder_path = os.path.join("images", folder_name)
     if not os.path.isdir(folder_path):
         return []
@@ -236,7 +231,7 @@ def get_room_photos(folder_name: str) -> List[str]:
     return photos
 
 # =====================================================================
-# 3. КЛИЕНТ API MAX (OneMe Bot API)
+# 2. КЛИЕНТ API MAX
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -338,7 +333,7 @@ class MaxBotClient:
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
 # =====================================================================
-# 4. КНОПКИ ДЛЯ ЧАТА
+# 3. КНОПКИ ДЛЯ ЧАТА
 # =====================================================================
 def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
     return [
@@ -382,7 +377,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 5. ОБРАБОТЧИК ВЕБХУКА MAX
+# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ПОДДЕРЖКОЙ ДИАЛОГА С АДМИНАМИ
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -432,20 +427,35 @@ async def handle_webhook(request: web.Request):
             buttons=btns
         )
 
-    # 1. Ответ администратора из группы поддержки (через Reply)
-    if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
-        reply_to = message.get("reply_to", {})
-        reply_body = reply_to.get("body", {})
-        reply_text = reply_body.get("text", "") or reply_to.get("text", "")
-        match = re.search(r"#user_(\d+)", reply_text)
+    # 1. ОБРАБОТКА ОТВЕТА АДМИНИСТРАТОРА (ЦИТИРОВАНИЕ / REPLY)
+    # Если сообщение пришло из чата администраторов
+    if str(ADMIN_CHAT_ID) != "0" and chat_id_str == str(ADMIN_CHAT_ID):
+        # Ищем ID гостя в цитируемом сообщении (через reply_to или текст #user_<chat_id>)
+        reply_to = message.get("reply_to", {}) or message.get("link", {})
+        reply_body = reply_to.get("body", {}) if isinstance(reply_to, dict) else {}
+        quoted_text = reply_body.get("text", "") or reply_to.get("text", "") if isinstance(reply_to, dict) else ""
+
+        target_guest_chat = None
+        match = re.search(r"#user_(\d+)", quoted_text)
         if match:
-            target_chat_id = match.group(1)
-            admin_answer = f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n{text}"
-            await max_bot.send_message(chat_id=target_chat_id, text=admin_answer)
-            await reply("✅ Ответ успешно доставлен гостю!")
+            target_guest_chat = match.group(1)
+
+        if target_guest_chat and text:
+            guest_answer = (
+                f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n"
+                f"{text}\n\n"
+                f"---------------------------------\n"
+                f"Если у вас есть еще вопросы, просто напишите их сюда!"
+            )
+            # Отправляем ответ прямо в личный чат гостю
+            sent = await max_bot.send_message(chat_id=target_guest_chat, text=guest_answer)
+            if sent:
+                await reply(f"✅ Ответ успешно передан гостю (ID: {target_guest_chat})!")
+            else:
+                await reply(f"⚠️ Не удалось доставить ответ пользователю {target_guest_chat}.")
             return web.json_response({"status": "ok"})
 
-    # 2. Обработка ввода вопроса гостем
+    # 2. ГОСТЬ ПИШЕТ ВОПРОС ПОСЛЕ НАЖАТИЯ «Задать вопрос администратору»
     if USER_STATES.get(user_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(user_id, None)
@@ -454,23 +464,24 @@ async def handle_webhook(request: web.Request):
 
         USER_STATES.pop(user_id, None)
         await reply(
-            "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог в ближайшее время.",
+            "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\n"
+            "Мы ответим вам прямо в этот диалог в ближайшее время.",
             get_main_menu_buttons()
         )
 
-        if ADMIN_CHAT_ID != "0":
+        # Пересылка вопроса в группу администраторов
+        if str(ADMIN_CHAT_ID) != "0":
             admin_ticket = (
-                f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ В MAX\n"
-                f"👤 Гость: {sender_name}\n"
-                f"🆔 ID: {chat_id_str}\n\n"
-                f"💬 Вопрос:\n{text}\n\n"
-                f"👉 Чтобы ответить гостю, ответьте цитатой (Reply) на это сообщение.\n"
+                f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ\n"
+                f"👤 Имя: {sender_name}\n"
+                f"💬 Текст вопроса:\n«{text}»\n\n"
+                f"👉 Чтобы ответить гостю, нажмите «Ответить» (Reply) на это сообщение.\n"
                 f"#user_{chat_id_str}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. Старт / Приветствие
+    # 3. ОСНОВНЫЕ КОМАНДЫ И МЕНЮ
     is_start = (
         text.startswith("/start")
         or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
@@ -578,7 +589,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_checkin":
         ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы заселим Вас раньше."
-        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение?\n\n— освободить номер нужно до 11:00, ключи и браслеты сдаются в администрацию."
@@ -586,7 +597,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера производится после перечисления предоплаты (30% от полной стоимости проживания)."
-        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_refund":
         ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до заезда, после — взимается 100% от суммы предоплаты."
@@ -630,7 +641,6 @@ async def handle_get(request: web.Request):
         folder_name = room.get("folder", key)
         photos = get_room_photos(folder_name)
         
-        # Галерея фотографий с горизонтальной прокруткой и отображением количества
         if photos:
             photos_count = len(photos)
             gallery_inner = "".join([
@@ -841,7 +851,6 @@ async def on_startup(app_instance: web.Application):
 app = web.Application()
 app.on_startup.append(on_startup)
 
-# Подключение статической раздачи папки images со всеми её подпапками
 os.makedirs("images", exist_ok=True)
 app.router.add_static("/images", path="images", name="images")
 
