@@ -18,6 +18,7 @@ BOT_TOKEN = os.getenv(
 )
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
+WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
 REVIEWS_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
@@ -27,10 +28,13 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
+# Номерной фонд базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/apart-2p.jpg",
+        "photo": "https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 3 человек",
+        "price": "от 4 500 ₽ / сутки",
         "description": (
             "🏡 Номер с кухней (апарт.) 2-х местный + доп.место\n\n"
             "Уютный семейный апартамент с индивидуальной кухонной зоной.\n\n"
@@ -47,7 +51,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "kitchen_3p": {
         "title": "Номер с кухней (апарт.) 3-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/apart-3p.jpg",
+        "photo": "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 4 человек",
+        "price": "от 5 500 ₽ / сутки",
         "description": (
             "🏡 Номер с кухней (апарт.) 3-х местный + доп.место\n\n"
             "Просторный апартамент для комфортного отдыха всей семьей.\n\n"
@@ -64,7 +70,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_1k_2p": {
         "title": "Эко-домик 1-комнатный 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/eco-1k.jpg",
+        "photo": "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 3 человек",
+        "price": "от 4 000 ₽ / сутки",
         "description": (
             "🏡 Эко-домик 1-комнатный 2-х местный + доп.место\n\n"
             "Отдельный домик из экологически чистого натурального бруса.\n\n"
@@ -80,7 +88,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_2k_3p": {
         "title": "Эко-домик 2-комнатный 3-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/eco-2k.jpg",
+        "photo": "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 4 человек",
+        "price": "от 6 000 ₽ / сутки",
         "description": (
             "🏡 Эко-домик 2-комнатный 3-х местный + доп.место\n\n"
             "Двухкомнатный коттедж из бруса для большой семьи.\n\n"
@@ -97,7 +107,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_brick_3p": {
         "title": "СТАНДАРТ кирпичный домик 3-х местный",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/brick-3p.jpg",
+        "photo": "https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 3 человек",
+        "price": "от 3 500 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ кирпичный домик 3-х местный\n\n"
             "Капитальный прохладный домик для отдыха 3 человек.\n\n"
@@ -113,7 +125,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_wood_2p": {
         "title": "СТАНДАРТ Деревянный домик 2-х местный",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/wood-2p.jpg",
+        "photo": "https://images.unsplash.com/photo-1596394516093-501ba68a0ba6?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 2 человек",
+        "price": "от 2 800 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ Деревянный домик 2-х местный\n\n"
             "Уютный деревянный домик для двоих в тишине и зелени.\n\n"
@@ -129,7 +143,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p": {
         "title": "СТАНДАРТ 2-х местный",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-2p.jpg",
+        "photo": "https://images.unsplash.com/photo-1618773928121-c32242e63f39?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 2 человек",
+        "price": "от 3 000 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ 2-х местный\n\n"
             "Классический номер для 2 гостей.\n\n"
@@ -145,7 +161,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p_extra": {
         "title": "СТАНДАРТ 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-2p-extra.jpg",
+        "photo": "https://images.unsplash.com/photo-1568495248636-6432b97bd949?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 3 человек",
+        "price": "от 3 300 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ 2-х местный + доп.место\n\n"
             "Номер категории стандарт для семьи до 3 человек.\n\n"
@@ -161,7 +179,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_3p": {
         "title": "СТАНДАРТ 3-х местный",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-3p.jpg",
+        "photo": "https://images.unsplash.com/photo-1591088398332-8a7791972843?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 3 человек",
+        "price": "от 3 700 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ 3-х местный\n\n"
             "Просторный 3-местный номер стандартной категории.\n\n"
@@ -177,7 +197,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_4p": {
         "title": "СТАНДАРТ 4-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-4p.jpg",
+        "photo": "https://images.unsplash.com/photo-1578683010236-d716f9a3f461?auto=format&fit=crop&w=800&q=80",
+        "capacity": "до 5 человек",
+        "price": "от 4 600 ₽ / сутки",
         "description": (
             "🏡 СТАНДАРТ 4-х местный + доп.место\n\n"
             "Семейный просторный номер на 4–5 гостей.\n\n"
@@ -248,125 +270,84 @@ class MaxBotClient:
         except Exception as e:
             logging.error(f"Ошибка answer_callback: {e}")
 
-    def _build_buttons_payload(self, buttons: List[List[Dict[str, str]]]) -> Dict[str, Any]:
-        max_buttons = []
-        for row in buttons:
-            new_row = []
-            for b in row:
-                btn_text = b.get("text", "")
-                if "url" in b:
-                    new_row.append({
-                        "type": "link",
-                        "text": btn_text,
-                        "url": b["url"]
-                    })
-                else:
-                    new_row.append({
-                        "type": "callback",
-                        "text": btn_text,
-                        "payload": b.get("payload", btn_text)
-                    })
-            max_buttons.append(new_row)
-        return {
-            "type": "inline_keyboard",
-            "payload": {
-                "buttons": max_buttons
-            }
-        }
-
     async def send_message(
         self,
         chat_id: Any,
         text: str = "",
-        buttons: List[List[Dict[str, str]]] = None,
-        photo_url: Optional[str] = None
+        buttons: List[List[Dict[str, str]]] = None
     ) -> bool:
         url = f"{self.base_url}/messages"
         target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
         params = {"chat_id": target_cid}
 
-        # 1. Попытка отправки с фото (если фото указано)
-        if photo_url:
-            attachments_with_photo = [
-                {
-                    "type": "image",
-                    "payload": {
-                        "url": photo_url
-                    }
-                }
-            ]
-            if buttons:
-                attachments_with_photo.append(self._build_buttons_payload(buttons))
-
-            payload_photo = {
-                "text": text,
-                "attachments": attachments_with_photo
-            }
-
-            try:
-                async with ClientSession(connector=self._get_connector()) as session:
-                    async with session.post(url, headers=self.headers, params=params, json=payload_photo) as resp:
-                        if resp.status in (200, 201):
-                            logging.info(f"✅ Карточка номера с фото отправлена в чат {chat_id}")
-                            return True
-                        resp_err = await resp.text()
-                        logging.warning(f"MAX не смог загрузить изображение ({resp.status}): {resp_err}. Переключаемся на отправку текста...")
-            except Exception as e:
-                logging.error(f"Ошибка при попытке отправки фото: {e}")
-
-        # 2. Надёжная отправка без фото (текст + клавиатура)
         attachments = []
         if buttons:
-            attachments.append(self._build_buttons_payload(buttons))
+            max_buttons = []
+            for row in buttons:
+                new_row = []
+                for b in row:
+                    btn_text = b.get("text", "")
+                    if "url" in b:
+                        new_row.append({"type": "link", "text": btn_text, "url": b["url"]})
+                    else:
+                        new_row.append({"type": "callback", "text": btn_text, "payload": b.get("payload", btn_text)})
+                max_buttons.append(new_row)
 
-        payload_text = {"text": text}
+            attachments.append({
+                "type": "inline_keyboard",
+                "payload": {"buttons": max_buttons}
+            })
+
+        payload = {"text": text}
         if attachments:
-            payload_text["attachments"] = attachments
+            payload["attachments"] = attachments
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, params=params, json=payload_text) as resp:
+                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
                     if resp.status in (200, 201):
-                        logging.info(f"✅ Сообщение успешно отправлено в чат {chat_id}")
+                        logging.info(f"✅ Отправлено в чат {chat_id}")
                         return True
                     resp_text = await resp.text()
-                    logging.warning(f"Ошибка отправки в чат {chat_id} ({resp.status}): {resp_text}")
+                    logging.warning(f"Ошибка отправки ({resp.status}): {resp_text}")
                     return False
         except Exception as e:
-            logging.error(f"Исключение при отправке сообщения в MAX: {e}")
+            logging.error(f"Исключение при отправке сообщения: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
 # =====================================================================
-# 3. КНОПКИ
+# 3. КНОПКИ ДЛЯ ЧАТА
 # =====================================================================
 def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
     return [
-        [{"text": "🏡 Наши номера", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
-        [{"text": "🌴 О базе", "payload": "menu_about"}, {"text": "🎡 Инфраструктура и услуги", "payload": "menu_infra"}],
+        [{"text": "📱 Витрина с фото номеров (Web)", "url": WEBAPP_URL}],
+        [{"text": "🏡 Список номеров", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
+        [{"text": "🌴 О базе", "payload": "menu_about"}, {"text": "🎡 Услуги и сервис", "payload": "menu_infra"}],
         [{"text": "⭐ Отзывы", "payload": "menu_reviews"}, {"text": "❓ Вопросы и ответы (FAQ)", "payload": "menu_faq"}],
         [{"text": "📞 Контакты и локация", "payload": "menu_contacts"}],
-        [{"text": "💬 Остались вопросы? Напишите нам", "payload": "menu_feedback"}]
+        [{"text": "💬 Задать вопрос администратору", "payload": "menu_feedback"}]
     ]
 
 def get_cancel_buttons() -> List[List[Dict[str, str]]]:
     return [[{"text": "❌ Отменить вопрос", "payload": "cancel_feedback"}]]
 
 def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
-    buttons = []
+    buttons = [
+        [{"text": "📱 Открыть фото-витрину всех номеров", "url": WEBAPP_URL}]
+    ]
     for key, data in ROOMS_CATALOG.items():
         buttons.append([{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}])
     buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
     return buttons
 
-def get_single_room_buttons(photo_url: Optional[str] = None) -> List[List[Dict[str, str]]]:
-    btns = []
-    if photo_url:
-        btns.append([{"text": "🖼 Фотографии номера на сайте", "url": photo_url}])
-    btns.append([{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}])
-    btns.append([{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}])
-    return btns
+def get_single_room_buttons(room_key: str) -> List[List[Dict[str, str]]]:
+    return [
+        [{"text": "📱 Посмотреть фото в Mini Web", "url": f"{WEBAPP_URL}#room-{room_key}"}],
+        [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
+        [{"text": "⬅️ Назад к списку", "payload": "menu_rooms"}]
+    ]
 
 def get_faq_buttons() -> List[List[Dict[str, str]]]:
     return [
@@ -424,15 +405,14 @@ async def handle_webhook(request: web.Request):
 
     chat_id_str = str(chat_id)
 
-    async def reply(msg_text: str, btns: list = None, photo: str = None):
+    async def reply(msg_text: str, btns: list = None):
         return await max_bot.send_message(
             chat_id=chat_id,
             text=msg_text,
-            buttons=btns,
-            photo_url=photo
+            buttons=btns
         )
 
-    # 1. Ответ администратора
+    # 1. Ответ администратора из группы поддержки
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
@@ -470,7 +450,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. Реакция на старт (/start, приветствие или переход в главное меню)
+    # 3. Старт / Приветствие
     is_start = (
         text.startswith("/start")
         or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
@@ -481,40 +461,37 @@ async def handle_webhook(request: web.Request):
     if is_start:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
-            "Отдых на песчаном побережье Черного моря (Анапа, ст. Благовещенская).\n"
-            "Ухоженная зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
+            "Отдых на первой береговой линии Черного моря (Анапа, станица Благовещенская).\n"
+            "Ухоженная территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
             "📅 Период работы: с 15 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
-            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️"
+            "Нажмите «📱 Витрина с фото номеров», чтобы открыть интерактивный каталог с фотографиями ⬇️"
         )
         await reply(welcome_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
 
     elif text == "🏡 Наши номера" or payload == "menu_rooms":
-        rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию для просмотра описания и стоимости:"
+        rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию или откройте визуальную витрину с фото:"
         await reply(rooms_text, get_rooms_list_buttons())
 
     elif payload.startswith("view_room_"):
         room_key = payload.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
-            p_url = room.get("photo_url")
             await reply(
                 msg_text=room["description"],
-                btns=get_single_room_buttons(p_url),
-                photo=p_url
+                btns=get_single_room_buttons(room_key)
             )
 
     elif text == "📝 Забронировать" or payload == "menu_book":
         book_info = (
             "📝 Онлайн-бронирование номеров\n\n"
-            "В нашем официальном модуле бронирования вы можете в реальном времени выбрать удобные даты отдыха, "
-            "узнать актуальное наличие свободных номеров и моментально оформить бронь с гарантией!\n\n"
-            "📌 Условия проживания:\n"
+            "В нашем официальном модуле вы можете в реальном времени выбрать удобные даты, "
+            "проверить наличие свободных мест и мгновенно забронировать проживание!\n\n"
+            "📌 Условия бронирования:\n"
             "• Период работы: с 15 июня по 15 сентября\n"
             "• Заезд: с 13:00 | Выезд: до 11:00\n"
-            "• Предоплата для брони: 30.00% от стоимости\n"
-            "• Остаток: оплачивается при заселении\n"
+            "• Предоплата: 30% от общей стоимости\n"
             "• Бесплатная отмена: возможна за 14 дней до заезда"
         )
         buttons = [
@@ -526,30 +503,29 @@ async def handle_webhook(request: web.Request):
     elif text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
         infra_text = (
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
-            "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n\n"
-            "👶 Детская площадка\n"
-            "⚽ Спортивный инвентарь (теннис, футбол, шахматы)\n"
-            "🥩 Мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
-            "🌸 Зеленая зона: 350 кустов роз и 1100 кустов лаванды\n\n"
-            "------------------------------------\n\n"
-            "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n\n"
-            "🎨 Студия творчества и мастер-классы\n"
-            "🧺 Прачечная и гладильная комната\n"
-            "⚡ Зарядная станция для электромобилей GB/T 7kwt (Цена 22₽ / 1 кВт.ч)."
+            "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n"
+            "• 👶 Детская игровая площадка\n"
+            "• ⚽ Настольный теннис, футбол, шахматы, спортинвентарь\n"
+            "• 🥩 Оборудованная мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
+            "• 🌸 Зеленая ухоженная территория (350 кустов роз, 1100 кустов лаванды)\n\n"
+            "💲 ДОПОЛНИТЕЛЬНО:\n"
+            "• 🎨 Творческие мастер-классы и шоу\n"
+            "• 🧺 Прачечная и гладильная комната\n"
+            "• ⚡ Зарядная станция GB/T 7 кВт для электромобилей (22 ₽ / кВт·ч)"
         )
         await reply(infra_text, get_main_menu_buttons())
 
     elif text == "🌴 О базе" or payload == "menu_about":
         about_text = (
             "🌴 База отдыха «Русалочка»\n\n"
-            "• Закрытая охраняемая зеленая территория\n"
-            "• Шаговая доступность к просторному пляжу и теплому морю\n"
-            "• Детский игровой комплекс, анимация и уютная атмосфера\n"
-            "• Период работы: с 15 июня по 15 сентября\n"
-            "• Сайт: https://rusalo4ka.com/"
+            "• Чистейший широкий песчаный пляж Черного моря\n"
+            "• Охраняемая закрытая зеленая территория\n"
+            "• Комплексное 3-разовое питание включено во все категории номеров\n"
+            "• Период сезона: с 15 июня по 15 сентября\n"
+            "• Официальный сайт: https://rusalo4ka.com/"
         )
         buttons = [
-            [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
+            [{"text": "🌐 Перейти на сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(about_text, buttons)
@@ -581,30 +557,30 @@ async def handle_webhook(request: web.Request):
         await reply("Часто задаваемые вопросы:", get_faq_buttons())
 
     elif payload == "faq_checkin":
-        ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы Вас заселим раньше."
+        ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы заселим Вас раньше."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_checkout":
-        ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
+        ans = "Во сколько выселение?\n\n— освободить номер нужно до 11:00, ключи и браслеты сдаются в администрацию."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_prepayment":
-        ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
+        ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера производится после перечисления предоплаты (30% от полной стоимости проживания)."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_refund":
-        ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до забронированной даты, после - взимается 100% от размера предоплаты. В экстренном случае обращайтесь на электронную почту."
+        ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до заезда, после — взимается 100% от суммы предоплаты."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_pets":
         ans = (
             "Возможно размещение с животными?\n\n"
-            "— Возможность размещения исключительно с декоративными собаками, весом до 6 кг., предусмотрена в номерах категории «Номер с кухней (апарт.)» эко.\n\n"
-            "— Тариф на размещение: 800 руб./сутки.\n\n"
-            "— Выгул собак на территории Базы отдыха «Русалочка» ЗАПРЕЩЕН."
+            "— Разрешено исключительно с декоративными собаками весом до 6 кг в категории «Номер с кухней эко».\n"
+            "— Тариф: 800 руб./сутки.\n"
+            "— Выгул собак по территории базы запрещен."
         )
         buttons = [
-            [{"text": "📄 Посмотреть правила", "payload": "faq_pdf"}],
+            [{"text": "📄 Посмотреть полные правила", "payload": "faq_pdf"}],
             [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
         ]
         await reply(ans, buttons)
@@ -612,7 +588,7 @@ async def handle_webhook(request: web.Request):
     elif payload == "faq_pdf":
         await reply(
             "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
-            [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]]
+            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
     elif text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
@@ -626,20 +602,154 @@ async def handle_webhook(request: web.Request):
     return web.json_response({"status": "ok"})
 
 # =====================================================================
-# 5. GET ДЛЯ ПРОВЕРКИ СЕРВЕРА
+# 5. ВСТРОЕННОЕ MINI WEB APP С ФОТОГРАФИЯМИ И КАТАЛОГОМ
 # =====================================================================
 async def handle_get(request: web.Request):
-    html_page = """<!DOCTYPE html>
+    cards_html = ""
+    for key, room in ROOMS_CATALOG.items():
+        cards_html += f"""
+        <div class="card" id="room-{key}">
+            <img src="{room['photo']}" alt="{room['title']}" class="room-img" loading="lazy">
+            <div class="card-content">
+                <div class="badge">🍽 с 3-х разовым питанием</div>
+                <h3 class="room-title">{room['title']}</h3>
+                <div class="room-meta">
+                    <span>👥 {room['capacity']}</span>
+                    <span class="price">{room['price']}</span>
+                </div>
+                <pre class="room-desc">{room['description']}</pre>
+                <a href="{BOOKING_URL}" target="_blank" class="book-btn">Забронировать этот номер</a>
+            </div>
+        </div>
+        """
+
+    full_html = f"""<!DOCTYPE html>
     <html lang="ru">
-    <head><meta charset="UTF-8"><title>Русалочка</title></head>
-    <body style="font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-        <div style="background: #1e293b; padding: 30px; border-radius: 16px; text-align: center;">
-            <h2>База отдыха «Русалочка» 🌊</h2>
-            <p style="color: #94a3b8;">Сервер активен (200 OK)</p>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>База отдыха «Русалочка» | Фото номеров</title>
+        <style>
+            * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                background-color: #0b1329;
+                color: #f1f5f9;
+                padding-bottom: 50px;
+                line-height: 1.5;
+            }}
+            header {{
+                background: linear-gradient(180deg, #1e293b 0%, #0b1329 100%);
+                padding: 24px 16px;
+                text-align: center;
+                border-bottom: 1px solid #334155;
+            }}
+            .logo {{
+                font-size: 24px;
+                font-weight: 800;
+                color: #38bdf8;
+                margin-bottom: 6px;
+            }}
+            .subtitle {{
+                font-size: 14px;
+                color: #94a3b8;
+            }}
+            .container {{
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 16px;
+            }}
+            .card {{
+                background: #1e293b;
+                border-radius: 16px;
+                overflow: hidden;
+                margin-bottom: 24px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+                border: 1px solid #334155;
+            }}
+            .room-img {{
+                width: 100%;
+                height: 220px;
+                object-fit: cover;
+                display: block;
+            }}
+            .card-content {{
+                padding: 18px;
+            }}
+            .badge {{
+                display: inline-block;
+                background: #0284c7;
+                color: #ffffff;
+                font-size: 12px;
+                font-weight: 700;
+                padding: 4px 10px;
+                border-radius: 20px;
+                margin-bottom: 10px;
+            }}
+            .room-title {{
+                font-size: 18px;
+                font-weight: 700;
+                color: #ffffff;
+                margin-bottom: 10px;
+            }}
+            .room-meta {{
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 14px;
+                padding-bottom: 12px;
+                border-bottom: 1px dashed #334155;
+            }}
+            .price {{
+                color: #34d399;
+                font-weight: 800;
+                font-size: 16px;
+            }}
+            .room-desc {{
+                white-space: pre-wrap;
+                font-family: inherit;
+                font-size: 13px;
+                color: #cbd5e1;
+                margin-bottom: 18px;
+            }}
+            .book-btn {{
+                display: block;
+                text-align: center;
+                background: #0284c7;
+                color: #ffffff;
+                text-decoration: none;
+                font-weight: 700;
+                font-size: 15px;
+                padding: 12px;
+                border-radius: 10px;
+                transition: background 0.2s;
+            }}
+            .book-btn:active {{
+                background: #0369a1;
+            }}
+            .footer-info {{
+                text-align: center;
+                padding: 20px;
+                color: #64748b;
+                font-size: 12px;
+            }}
+        </style>
+    </head>
+    <body>
+        <header>
+            <div class="logo">Русалочка 🌊</div>
+            <div class="subtitle">База отдыха на Черном море (ст. Благовещенская)</div>
+        </header>
+        <div class="container">
+            {cards_html}
+            <div class="footer-info">
+                База отдыха «Русалочка» • Период работы: с 15 июня по 15 сентября<br>
+                Анапа, ст. Благовещенская • +7 (918) 47-74-366
+            </div>
         </div>
     </body>
     </html>"""
-    return web.Response(text=html_page, content_type="text/html", status=200)
+    return web.Response(text=full_html, content_type="text/html", status=200)
 
 async def on_startup(app_instance: web.Application):
     logging.info("Проверка токена в MAX API...")
