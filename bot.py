@@ -16,7 +16,7 @@ BOT_TOKEN = os.getenv(
     "BOT_TOKEN",
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "-79780607715530")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
 WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 
@@ -231,7 +231,7 @@ def get_room_photos(folder_name: str) -> List[str]:
     return photos
 
 # =====================================================================
-# 2. КЛИЕНТ API MAX
+# 2. КЛИЕНТ API MAX (OneMe Bot API)
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -321,7 +321,7 @@ class MaxBotClient:
             async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
                     if resp.status in (200, 201):
-                        logging.info(f"✅ Отправлено в чат {chat_id}")
+                        logging.info(f"✅ Успешно отправлено в чат {chat_id}")
                         return True
                     resp_text = await resp.text()
                     logging.warning(f"Ошибка отправки ({resp.status}): {resp_text}")
@@ -377,7 +377,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ПОДДЕРЖКОЙ ДИАЛОГА С АДМИНАМИ
+# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ПОЛНЫМ РЕЛЕЕМ ПОДДЕРЖКИ
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -394,6 +394,10 @@ async def handle_webhook(request: web.Request):
     sender = message.get("sender", {}) or data.get("user", {})
     callback = data.get("callback", {})
     callback_id = callback.get("callback_id")
+
+    # Игнорируем любые исходящие события самого бота
+    if sender.get("is_bot") is True:
+        return web.json_response({"status": "ok"})
 
     if callback_id:
         await max_bot.answer_callback(callback_id)
@@ -427,64 +431,71 @@ async def handle_webhook(request: web.Request):
             buttons=btns
         )
 
-    # 1. ОБРАБОТКА ОТВЕТА АДМИНИСТРАТОРА (ЦИТИРОВАНИЕ / REPLY)
-    # Если сообщение пришло из чата администраторов
+    # 1. ОБРАБОТКА ОТВЕТА АДМИНИСТРАТОРА (В ГРУППЕ АДМИНОВ)
     if str(ADMIN_CHAT_ID) != "0" and chat_id_str == str(ADMIN_CHAT_ID):
-        # Ищем ID гостя в цитируемом сообщении (через reply_to или текст #user_<chat_id>)
-        reply_to = message.get("reply_to", {}) or message.get("link", {})
-        reply_body = reply_to.get("body", {}) if isinstance(reply_to, dict) else {}
-        quoted_text = reply_body.get("text", "") or reply_to.get("text", "") if isinstance(reply_to, dict) else ""
-
-        target_guest_chat = None
-        match = re.search(r"#user_(\d+)", quoted_text)
-        if match:
+        # Преобразуем всё сообщение в строку для поиска #user_<ID>
+        raw_msg_str = str(message)
+        match = re.search(r"#user_(\d+)", raw_msg_str)
+        
+        if match and text:
             target_guest_chat = match.group(1)
-
-        if target_guest_chat and text:
+            logging.info(f"Обнаружен ответ админа для пользователя {target_guest_chat}: {text}")
+            
             guest_answer = (
                 f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n"
                 f"{text}\n\n"
                 f"---------------------------------\n"
-                f"Если у вас есть еще вопросы, просто напишите их сюда!"
+                f"Если у вас есть еще вопросы, напишите их прямо сюда!"
             )
-            # Отправляем ответ прямо в личный чат гостю
-            sent = await max_bot.send_message(chat_id=target_guest_chat, text=guest_answer)
-            if sent:
-                await reply(f"✅ Ответ успешно передан гостю (ID: {target_guest_chat})!")
+            # Отправляем ответ гостю в его личный диалог с ботом
+            success = await max_bot.send_message(chat_id=target_guest_chat, text=guest_answer)
+            if success:
+                await reply(f"✅ Ответ успешно доставлен гостю!")
             else:
-                await reply(f"⚠️ Не удалось доставить ответ пользователю {target_guest_chat}.")
+                await reply(f"⚠️ Не удалось доставить ответ гостю (ID: {target_guest_chat}).")
             return web.json_response({"status": "ok"})
 
-    # 2. ГОСТЬ ПИШЕТ ВОПРОС ПОСЛЕ НАЖАТИЯ «Задать вопрос администратору»
+    # 2. РЕЖИМ ОЖИДАНИЯ ВОПРОСА ОТ ГОСТЯ
     if USER_STATES.get(user_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(user_id, None)
             await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
 
+        # Сбрасываем статус ожидания
         USER_STATES.pop(user_id, None)
+
+        # Подтверждаем гостю
         await reply(
             "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\n"
             "Мы ответим вам прямо в этот диалог в ближайшее время.",
             get_main_menu_buttons()
         )
 
-        # Пересылка вопроса в группу администраторов
+        # Отправляем тикет администраторам в группу
         if str(ADMIN_CHAT_ID) != "0":
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ\n"
                 f"👤 Имя: {sender_name}\n"
-                f"💬 Текст вопроса:\n«{text}»\n\n"
+                f"💬 Вопрос:\n«{text}»\n\n"
                 f"👉 Чтобы ответить гостю, нажмите «Ответить» (Reply) на это сообщение.\n"
                 f"#user_{chat_id_str}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. ОСНОВНЫЕ КОМАНДЫ И МЕНЮ
+    # 3. ОСНОВНЫЕ КНОПКИ И МЕНЮ
+    if payload == "menu_feedback" or text == "💬 Задать вопрос администратору":
+        USER_STATES[user_id] = "waiting_feedback"
+        prompt = (
+            "💬 Задать вопрос администратору базы отдыха\n\n"
+            "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
+        )
+        await reply(prompt, get_cancel_buttons())
+        return web.json_response({"status": "ok"})
+
     is_start = (
         text.startswith("/start")
-        or text.lower() in ["привет", "здравствуйте", "старт", "начать"]
         or payload == "menu_root"
         or update_type in ["bot_started", "chat_started"]
     )
@@ -589,7 +600,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_checkin":
         ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы заселим Вас раньше."
-        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение?\n\n— освободить номер нужно до 11:00, ключи и браслеты сдаются в администрацию."
@@ -619,21 +630,25 @@ async def handle_webhook(request: web.Request):
     elif payload == "faq_pdf":
         await reply(
             "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
-            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
+            [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
-    elif text in ["💬 Задать вопрос администратору", "💬 Остались вопросы? Напишите нам"] or payload == "menu_feedback":
-        USER_STATES[user_id] = "waiting_feedback"
+    # Если гость написал произвольный текст вне режима вопроса
+    elif text:
         prompt = (
-            "💬 Задать вопрос администратору базы отдыха\n\n"
-            "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
+            "Я получил ваше сообщение! 🌊\n\n"
+            "Если вы хотите передать вопрос администратору базы «Русалочка», нажмите кнопку ниже:"
         )
-        await reply(prompt, get_cancel_buttons())
+        buttons = [
+            [{"text": "💬 Задать вопрос администратору", "payload": "menu_feedback"}],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+        ]
+        await reply(prompt, buttons)
 
     return web.json_response({"status": "ok"})
 
 # =====================================================================
-# 6. MINI WEB APP С МУЛЬТИ-ФОТО ГАЛЕРЕЕЙ (.WEBP)
+# 5. MINI WEB APP С МУЛЬТИ-ФОТО ГАЛЕРЕЕЙ (.WEBP)
 # =====================================================================
 async def handle_get(request: web.Request):
     cards_html = ""
