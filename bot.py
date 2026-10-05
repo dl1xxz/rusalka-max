@@ -6,13 +6,19 @@ from typing import Dict, Any, List
 from aiohttp import web, ClientSession
 from dotenv import load_dotenv
 
+# =====================================================================
+# 1. КОНФИГУРАЦИЯ И ДАННЫЕ
+# =====================================================================
 load_dotenv()
 
+# Токен доступа платформы MAX
 BOT_TOKEN = os.getenv(
     "BOT_TOKEN",
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
 MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://api.max.ru/v1")
+
+# ID группы администраторов в MAX (0 — по умолчанию, пока не пойман в логах)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
@@ -24,6 +30,7 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
+# Каталог номеров базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -180,6 +187,9 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# =====================================================================
+# 2. КЛИЕНТ API MAX
+# =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
         self.token = token
@@ -235,6 +245,9 @@ class MaxBotClient:
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
+# =====================================================================
+# 3. КЛАВИАТУРЫ
+# =====================================================================
 def get_main_menu_reply_keyboard() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "🏡 Наши номера", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
@@ -272,12 +285,16 @@ def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
     ]
 
+# =====================================================================
+# 4. ОБРАБОТЧИК WEBHOOK (POST)
+# =====================================================================
 async def handle_webhook(request: web.Request):
     try:
         data = await request.json()
     except Exception:
         return web.Response(status=400)
 
+    # Логирование входящих данных для BotHost
     logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
     event_type = data.get("type", "")
@@ -292,7 +309,7 @@ async def handle_webhook(request: web.Request):
     if not chat_id:
         return web.Response(text="OK")
 
-    # Ответ администратора из группы поддержки (Reply)
+    # 1. Ответ администратора из группы поддержки (через Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_text = reply_to.get("text", "")
@@ -304,7 +321,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!", keyboard_type="inline")
             return web.Response(text="OK")
 
-    # Обработка ввода вопроса гостем
+    # 2. Обработка ввода вопроса гостем
     if USER_STATES.get(sender_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(sender_id, None)
@@ -336,7 +353,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
         return web.Response(text="OK")
 
-    # Реакция на старт (кнопка «Начать», команда /start или событие открытия диалога)
+    # 3. Реакция на старт (кнопка «Начать», /start или системное открытие)
     is_start = (
         text.startswith("/start")
         or payload == "menu_root"
@@ -351,7 +368,7 @@ async def handle_webhook(request: web.Request):
             "Ухоженная зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
             "📅 Период работы: с 15 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
-            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️️"
+            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇"
         )
         await max_bot.send_message(
             chat_id=chat_id,
@@ -437,14 +454,14 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
         ]
         await max_bot.send_message(chat_id=chat_id, text=about_text, buttons=buttons, keyboard_type="inline")
 
     elif text == "⭐ Отзывы" or payload == "menu_reviews":
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await max_bot.send_message(
             chat_id=chat_id,
@@ -548,7 +565,71 @@ async def handle_webhook(request: web.Request):
 
     return web.Response(text="OK")
 
+# =====================================================================
+# 5. ОБРАБОТЧИК ДЛЯ ВЕБ-ОКНА И GET-ЗАПРОСОВ
+# =====================================================================
+async def handle_get(request: web.Request):
+    html_page = """<!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>База отдыха «Русалочка»</title>
+        <style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: #0f172a;
+                color: #f8fafc;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                text-align: center;
+                padding: 20px;
+                box-sizing: border-box;
+            }
+            .card {
+                background: #1e293b;
+                padding: 30px;
+                border-radius: 16px;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+                max-width: 400px;
+                width: 100%;
+            }
+            h1 { font-size: 20px; margin-bottom: 12px; color: #38bdf8; }
+            p { font-size: 14px; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
+            .badge {
+                display: inline-block;
+                background: #10b981;
+                color: white;
+                padding: 4px 12px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h1>База отдыха «Русалочка» 🌊</h1>
+            <p>Чат-бот успешно запущен и готов к приёму сообщений в мессенджере MAX.</p>
+            <span class="badge">Сервер активен (200 OK)</span>
+        </div>
+    </body>
+    </html>"""
+    return web.Response(text=html_page, content_type="text/html", status=200)
+
+# =====================================================================
+# 6. ТОЧКА ВХОДА
+# =====================================================================
 app = web.Application()
+
+# Маршруты поддерживают GET и POST по обоим путям
+app.router.add_get("/", handle_get)
+app.router.add_post("/", handle_webhook)
+app.router.add_get("/webhook", handle_get)
 app.router.add_post("/webhook", handle_webhook)
 
 if __name__ == "__main__":
