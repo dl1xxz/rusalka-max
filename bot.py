@@ -3,7 +3,7 @@ import re
 import logging
 from typing import Dict, Any, List
 
-from aiohttp import web, ClientSession
+from aiohttp import web, ClientSession, TCPConnector
 from dotenv import load_dotenv
 
 # =====================================================================
@@ -11,19 +11,12 @@ from dotenv import load_dotenv
 # =====================================================================
 load_dotenv()
 
-# Официальный рабочий домен API платформы MAX
 MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://platform-api2.max.ru")
-
-# Токен доступа платформы MAX
 BOT_TOKEN = os.getenv(
     "BOT_TOKEN",
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
-
-# ID чата администраторов базы отдыха в MAX (по умолчанию 0)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
-
-# Публичный адрес вебхука на BotHost
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
@@ -35,7 +28,7 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Номерной фонд базы отдыха «Русалочка»
+# Каталог номеров базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -193,7 +186,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 # =====================================================================
-# 2. КЛИЕНТ ДЛЯ ВЗАИМОДЕЙСТВИЯ С API MAX
+# 2. КЛИЕНТ API MAX (С ОБХОДОМ СЕРТИФИКАТОВ МИНЦИФРЫ)
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -202,17 +195,19 @@ class MaxBotClient:
 
     @property
     def headers(self) -> Dict[str, str]:
-        # Авторизация по официальному стандарту MAX (без Bearer)
         return {
             "Authorization": self.token,
             "Content-Type": "application/json"
         }
 
+    def _get_connector(self) -> TCPConnector:
+        # Отключаем проверку ssl для российских сертификатов Минцифры
+        return TCPConnector(ssl=False)
+
     async def get_me(self) -> None:
-        """Проверка валидности токена"""
         url = f"{self.base_url}/me"
         try:
-            async with ClientSession() as session:
+            async with ClientSession(connector=self._get_connector()) as session:
                 async with session.get(url, headers=self.headers) as resp:
                     data = await resp.text()
                     logging.info(f"Проверка /me в MAX API: статус={resp.status}, ответ={data}")
@@ -220,13 +215,10 @@ class MaxBotClient:
             logging.error(f"Ошибка вызова /me: {e}")
 
     async def setup_subscription(self, webhook_target: str) -> None:
-        """Регистрация Webhook через подписку на события"""
         url = f"{self.base_url}/subscriptions"
-        payload = {
-            "url": webhook_target
-        }
+        payload = {"url": webhook_target}
         try:
-            async with ClientSession() as session:
+            async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=self.headers, json=payload) as resp:
                     resp_text = await resp.text()
                     logging.info(f"Регистрация Webhook в MAX (/subscriptions): статус={resp.status}, ответ={resp_text}")
@@ -240,7 +232,6 @@ class MaxBotClient:
         buttons: List[List[Dict[str, str]]] = None,
         keyboard_type: str = "reply"
     ) -> bool:
-        """Отправка сообщений пользователям и в группы"""
         url = f"{self.base_url}/messages"
         payload: Dict[str, Any] = {
             "chat_id": chat_id,
@@ -253,18 +244,14 @@ class MaxBotClient:
             }
 
         try:
-            async with ClientSession() as session:
+            async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=self.headers, json=payload) as resp:
-                    if resp.status not in (200, 201):
-                        resp_text = await resp.text()
-                        logging.warning(f"MAX API вернул ошибку {resp.status}: {resp_text}")
                     return resp.status in (200, 201)
         except Exception as e:
             logging.error(f"Исключение при отправке сообщения в MAX: {e}")
             return False
 
     async def send_document(self, chat_id: str, file_path: str, caption: str = "") -> bool:
-        """Отправка документов (правил в PDF)"""
         url = f"{self.base_url}/messages"
         if not os.path.exists(file_path):
             return await self.send_message(
@@ -280,7 +267,7 @@ class MaxBotClient:
             data.add_field('file', open(file_path, 'rb'), filename=os.path.basename(file_path))
 
             headers = {"Authorization": self.token}
-            async with ClientSession() as session:
+            async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=headers, data=data) as resp:
                     return resp.status in (200, 201)
         except Exception as e:
@@ -326,11 +313,11 @@ def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "Возможно размещение с животными?", "payload": "faq_pets"}],
         [{"text": "📄 Посмотреть полные правила (PDF)", "payload": "faq_pdf"}],
         [{"text": "💬 Задать свой вопрос", "payload": "menu_feedback"}],
-        [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+        [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА (POST)
+# 4. ОБРАБОТЧИК ВЕБХУКА
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -338,7 +325,6 @@ async def handle_webhook(request: web.Request):
     except Exception:
         return web.Response(status=400)
 
-    # Логирование входящего запроса для BotHost
     logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
     event_type = data.get("type", "")
@@ -353,7 +339,7 @@ async def handle_webhook(request: web.Request):
     if not chat_id:
         return web.json_response({"status": "ok"})
 
-    # 1. Ответ администратора из группы поддержки MAX (через Reply)
+    # Ответ администратора из группы поддержки (Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_text = reply_to.get("text", "")
@@ -365,7 +351,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!", keyboard_type="inline")
             return web.json_response({"status": "ok"})
 
-    # 2. Обработка ввода вопроса гостем
+    # Ввод вопроса гостем
     if USER_STATES.get(sender_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(sender_id, None)
@@ -397,7 +383,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
         return web.json_response({"status": "ok"})
 
-    # 3. Реакция на старт (/start, кнопка старта или системный переход)
+    # Реакция на старт
     is_start = (
         text.startswith("/start")
         or payload == "menu_root"
@@ -465,20 +451,13 @@ async def handle_webhook(request: web.Request):
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
             "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n\n"
             "👶 Детская площадка\n"
-            "Игровой комплекс для малышей на свежем воздухе.\n\n"
-            "⚽ Спортивный инвентарь\n"
-            "Мячи, ракетки, настольный теннис, шахматы, шашки и настольный футбол — всё для активного отдыха.\n\n"
-            "🥩 Мангальная зона\n"
-            "Оборудованная зона отдыха с бесплатным предоставлением решеток, шампуров, печи и казана (12 л).\n\n"
-            "🌸 Зеленая зона\n"
-            "Зеленая территория: 350 кустов роз и 1100 кустов лаванды.\n\n"
-            "------------------------------------\n\n"
+            "⚽ Спортивный инвентарь (теннис, футбол, шахматы)\n"
+            "🥩 Мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
+            "🌸 Зеленая зона: 350 кустов роз и 1100 кустов лаванды\n\n"
             "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n\n"
-            "🎨 Студия творчества и шоу\n"
-            "Регулярные шоу-программы и мастер-классы.\n\n"
-            "🧺 Полезный сервис\n"
-            "Прачечная и гладильная комната.\n"
-            "Зарядная станция для электромобилей GB/T 7kwt (Цена 22₽ / 1 кВт.ч)."
+            "🎨 Студия творчества и мастер-классы\n"
+            "🧺 Прачечная и гладильная комната\n"
+            "⚡ Зарядная станция для электромобилей GB/T 7kwt (22 ₽ / 1 кВт.ч)"
         )
         await max_bot.send_message(
             chat_id=chat_id,
@@ -570,7 +549,7 @@ async def handle_webhook(request: web.Request):
         await max_bot.send_message(
             chat_id=chat_id,
             text=ans,
-            buttons=[[{"text": "⬅ Назад в FAQ", "payload": "menu_faq"}]],
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
             keyboard_type="inline"
         )
 
@@ -609,46 +588,25 @@ async def handle_webhook(request: web.Request):
 
     return web.json_response({"status": "ok"})
 
-# =====================================================================
-# 5. СТРАНИЦА ДЛЯ GET-ЗАПРОСОВ (HEALTHCHECK)
-# =====================================================================
 async def handle_get(request: web.Request):
     html_page = """<!DOCTYPE html>
     <html lang="ru">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>База отдыха «Русалочка»</title>
-        <style>
-            body { font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
-            .card { background: #1e293b; padding: 30px; border-radius: 16px; max-width: 360px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-            h1 { font-size: 20px; color: #38bdf8; margin-bottom: 10px; }
-            p { font-size: 14px; color: #94a3b8; }
-            .badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h1>База отдыха «Русалочка» 🌊</h1>
-            <p>Чат-бот успешно запущен и готов к приёму сообщений в мессенджере MAX.</p>
-            <span class="badge">Сервер активен (200 OK)</span>
+    <head><meta charset="UTF-8"><title>Русалочка</title></head>
+    <body style="font-family: sans-serif; background: #0f172a; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
+        <div style="background: #1e293b; padding: 30px; border-radius: 16px; text-align: center;">
+            <h2>База отдыха «Русалочка» 🌊</h2>
+            <p style="color: #94a3b8;">Сервер активен (200 OK)</p>
         </div>
     </body>
     </html>"""
     return web.Response(text=html_page, content_type="text/html", status=200)
 
-# =====================================================================
-# 6. АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ ПРИ ЗАПУСКЕ СЕРВЕРА
-# =====================================================================
 async def on_startup(app_instance: web.Application):
     logging.info("Проверка токена в MAX API...")
     await max_bot.get_me()
     logging.info(f"Регистрируем подписку на Webhook: {WEBHOOK_URL}...")
     await max_bot.setup_subscription(WEBHOOK_URL)
 
-# =====================================================================
-# 7. ИНИЦИАЛИЗАЦИЯ И СТАРТ СЕРВЕРА
-# =====================================================================
 app = web.Application()
 app.on_startup.append(on_startup)
 
