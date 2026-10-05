@@ -7,13 +7,18 @@ from aiohttp import web, ClientSession
 from dotenv import load_dotenv
 
 # =====================================================================
-# 1. КОНФИГУРАЦИЯ
+# 1. КОНФИГУРАЦИЯ И ДАННЫЕ
 # =====================================================================
 load_dotenv()
 
-# Токен доступа платформы MAX
-BOT_TOKEN = os.getenv("BOT_TOKEN", "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY")
+# Токен бота MAX
+BOT_TOKEN = os.getenv(
+    "BOT_TOKEN",
+    "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
+)
 MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://api.max.ru/v1")
+
+# ID группы администраторов в MAX (по умолчанию 0, пока не пойман из логов)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
@@ -183,14 +188,20 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 # =====================================================================
-# КЛИЕНТ API MAX
+# 2. КЛИЕНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ В MAX
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
         self.token = token
         self.base_url = base_url.rstrip("/")
 
-    async def send_message(self, chat_id: str, text: str, buttons: List[List[Dict[str, str]]] = None) -> bool:
+    async def send_message(
+        self,
+        chat_id: str,
+        text: str,
+        buttons: List[List[Dict[str, str]]] = None,
+        keyboard_type: str = "reply"  # "reply" — нижние кнопки клавиатуры, "inline" — кнопки под сообщением
+    ) -> bool:
         url = f"{self.base_url}/messages.send"
         headers = {
             "Authorization": f"Bearer {self.token}",
@@ -201,22 +212,29 @@ class MaxBotClient:
             "text": text,
         }
         if buttons:
-            payload["keyboard"] = {"buttons": buttons}
+            payload["keyboard"] = {
+                "type": keyboard_type,
+                "buttons": buttons
+            }
 
         try:
             async with ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки сообщения: {e}")
+            logging.error(f"Ошибка отправки сообщения в MAX: {e}")
             return False
 
     async def send_document(self, chat_id: str, file_path: str, caption: str = "") -> bool:
         url = f"{self.base_url}/messages.sendDocument"
         headers = {"Authorization": f"Bearer {self.token}"}
-        
+
         if not os.path.exists(file_path):
-            return await self.send_message(chat_id, f"{caption}\n(Файл временно недоступен)")
+            return await self.send_message(
+                chat_id=chat_id,
+                text=f"{caption}\n(Файл временно обновляется на сервере: https://rusalo4ka.com/)",
+                keyboard_type="inline"
+            )
 
         try:
             data = web.FormData()
@@ -228,15 +246,17 @@ class MaxBotClient:
                 async with session.post(url, headers=headers, data=data) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки документа: {e}")
+            logging.error(f"Ошибка отправки файла в MAX: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
 # =====================================================================
-# КНОПКИ МЕНЮ
+# 3. КЛАВИАТУРЫ
 # =====================================================================
-def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
+
+# Главное меню (нижняя выползающая клавиатура / reply)
+def get_main_menu_reply_keyboard() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "🏡 Наши номера", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
         [{"text": "🌴 О базе", "payload": "menu_about"}, {"text": "🎡 Инфраструктура и услуги", "payload": "menu_infra"}],
@@ -245,23 +265,27 @@ def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "💬 Остались вопросы? Напишите нам", "payload": "menu_feedback"}]
     ]
 
-def get_cancel_button() -> List[List[Dict[str, str]]]:
+# Кнопка отмены при вводе вопроса (нижняя клавиатура)
+def get_cancel_reply_keyboard() -> List[List[Dict[str, str]]]:
     return [[{"text": "❌ Отменить вопрос", "payload": "cancel_feedback"}]]
 
-def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
+# Список номеров (инлайн-кнопки под сообщением)
+def get_rooms_list_inline_buttons() -> List[List[Dict[str, str]]]:
     buttons = []
     for key, data in ROOMS_CATALOG.items():
         buttons.append([{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}])
     buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
     return buttons
 
-def get_single_room_buttons() -> List[List[Dict[str, str]]]:
+# Кнопки под описанием выбранного номера (инлайн)
+def get_single_room_inline_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
         [{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}]
     ]
 
-def get_faq_buttons() -> List[List[Dict[str, str]]]:
+# Меню FAQ (инлайн-кнопки под сообщением)
+def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "Во сколько заселение?", "payload": "faq_checkin"}],
         [{"text": "Во сколько выселение из номера?", "payload": "faq_checkout"}],
@@ -274,7 +298,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# ВЕБХУК
+# 4. ОБРАБОТЧИК WEBHOOK
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -282,8 +306,8 @@ async def handle_webhook(request: web.Request):
     except Exception:
         return web.Response(status=400)
 
-    # Логирование входящего JSON (нужно для того, чтобы увидеть точный ID админ-чата)
-    logging.info(f"Входящий Webhook: {data}")
+    # Логирование входящих данных — позволяет сразу увидеть chat_id в панели BotHost
+    logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
     message = data.get("message", {})
     chat_id = str(message.get("chat_id") or data.get("chat_id") or "")
@@ -296,7 +320,7 @@ async def handle_webhook(request: web.Request):
     if not chat_id:
         return web.Response(text="OK")
 
-    # Ответ администратора из группы поддержки (Reply)
+    # 1. Ответ администратора из группы поддержки (через Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_text = reply_to.get("text", "")
@@ -304,22 +328,28 @@ async def handle_webhook(request: web.Request):
         if match:
             target_user_id = match.group(1)
             admin_answer = f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n{text}"
-            await max_bot.send_message(chat_id=target_user_id, text=admin_answer)
-            await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!")
+            await max_bot.send_message(chat_id=target_user_id, text=admin_answer, keyboard_type="reply")
+            await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!", keyboard_type="inline")
             return web.Response(text="OK")
 
-    # Режим ввода вопроса гостем
+    # 2. Обработка ввода вопроса гостем
     if USER_STATES.get(sender_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(sender_id, None)
-            await max_bot.send_message(chat_id, "Отправка вопроса отменена.", get_main_menu_buttons())
+            await max_bot.send_message(
+                chat_id=chat_id,
+                text="Отправка вопроса отменена.",
+                buttons=get_main_menu_reply_keyboard(),
+                keyboard_type="reply"
+            )
             return web.Response(text="OK")
 
         USER_STATES.pop(sender_id, None)
         await max_bot.send_message(
-            chat_id,
-            "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог.",
-            get_main_menu_buttons()
+            chat_id=chat_id,
+            text="✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог в ближайшее время.",
+            buttons=get_main_menu_reply_keyboard(),
+            keyboard_type="reply"
         )
 
         if ADMIN_CHAT_ID != "0":
@@ -331,10 +361,10 @@ async def handle_webhook(request: web.Request):
                 f"👉 Чтобы ответить гостю, ответьте цитатой (Reply) на это сообщение.\n"
                 f"#user_{sender_id}"
             )
-            await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
+            await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
         return web.Response(text="OK")
 
-    # Меню и разделы
+    # 3. Главное меню и навигация
     if text.startswith("/start") or payload == "menu_root":
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
@@ -342,24 +372,40 @@ async def handle_webhook(request: web.Request):
             "Ухоженная зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
             "📅 Период работы: с 15 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
-            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️️"
+            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️"
         )
-        await max_bot.send_message(chat_id, welcome_text, get_main_menu_buttons())
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=welcome_text,
+            buttons=get_main_menu_reply_keyboard(),
+            keyboard_type="reply"
+        )
 
     elif text == "🏡 Наши номера" or payload == "menu_rooms":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию для просмотра описания и стоимости:"
-        await max_bot.send_message(chat_id, rooms_text, get_rooms_list_buttons())
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=rooms_text,
+            buttons=get_rooms_list_inline_buttons(),
+            keyboard_type="inline"
+        )
 
     elif payload.startswith("view_room_"):
         room_key = payload.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
-            await max_bot.send_message(chat_id, room["description"], get_single_room_buttons())
+            await max_bot.send_message(
+                chat_id=chat_id,
+                text=room["description"],
+                buttons=get_single_room_inline_buttons(),
+                keyboard_type="inline"
+            )
 
     elif text == "📝 Забронировать" or payload == "menu_book":
         book_info = (
             "📝 Онлайн-бронирование номеров\n\n"
-            "В нашем официальном модуле бронирования вы можете выбрать даты отдыха и моментально оформить бронь!\n\n"
+            "В нашем официальном модуле бронирования вы можете в реальном времени выбрать удобные даты отдыха, "
+            "узнать актуальное наличие свободных номеров и моментально оформить бронь с гарантией!\n\n"
             "📌 Условия проживания:\n"
             "• Период работы: с 15 июня по 15 сентября\n"
             "• Заезд: с 13:00 | Выезд: до 11:00\n"
@@ -371,22 +417,34 @@ async def handle_webhook(request: web.Request):
             [{"text": "💳 Перейти к бронированию и оплате", "url": BOOKING_URL}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id, book_info, buttons)
+        await max_bot.send_message(chat_id=chat_id, text=book_info, buttons=buttons, keyboard_type="inline")
 
     elif text == "🎡 Инфраструктура и услуги" or payload == "menu_infra":
         infra_text = (
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
-            "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n"
+            "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n\n"
             "👶 Детская площадка\n"
-            "⚽ Спортивный инвентарь (теннис, футбол, шахматы)\n"
-            "🥩 Мангальная зона (решетки, шампуры, казан 12 л)\n"
-            "🌸 Зеленая зона: 350 кустов роз и 1100 кустов лаванды\n\n"
-            "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n"
-            "🎨 Студия творчества и мастер-классы\n"
-            "🧺 Прачечная и гладильная комната\n"
-            "⚡ Зарядная станция для электромобилей GB/T 7kwt (22 ₽ / кВт.ч)"
+            "Игровой комплекс для малышей на свежем воздухе.\n\n"
+            "⚽ Спортивный инвентарь\n"
+            "Мячи, ракетки, настольный теннис, шахматы, шашки и настольный футбол — всё для активного отдыха.\n\n"
+            "🥩 Мангальная зона\n"
+            "Оборудованная зона отдыха с бесплатным предоставлением решеток, шампуров, печи и казана (12 л).\n\n"
+            "🌸 Зеленая зона\n"
+            "Зеленая территория: 350 кустов роз и 1100 кустов лаванды.\n\n"
+            "------------------------------------\n\n"
+            "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n\n"
+            "🎨 Студия творчества и шоу\n"
+            "Регулярные шоу-программы и мастер-классы.\n\n"
+            "🧺 Полезный сервис\n"
+            "Прачечная и гладильная комната.\n"
+            "Зарядная станция для электромобилей GB/T 7kwt (Цена 22₽ / 1 кВт.ч)."
         )
-        await max_bot.send_message(chat_id, infra_text, get_main_menu_buttons())
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=infra_text,
+            buttons=get_main_menu_reply_keyboard(),
+            keyboard_type="reply"
+        )
 
     elif text == "🌴 О базе" or payload == "menu_about":
         about_text = (
@@ -401,49 +459,79 @@ async def handle_webhook(request: web.Request):
             [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id, about_text, buttons)
+        await max_bot.send_message(chat_id=chat_id, text=about_text, buttons=buttons, keyboard_type="inline")
 
     elif text == "⭐ Отзывы" or payload == "menu_reviews":
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id, "⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text="⭐ Отзывы наших гостей на Яндекс.Картах:",
+            buttons=buttons,
+            keyboard_type="inline"
+        )
 
     elif text == "📞 Контакты и локация" or payload == "menu_contacts":
         contacts_text = (
             "📞 Контакты базы отдыха «Русалочка»:\n\n"
             "📍 Адрес: Краснодарский край, г. Анапа, ст. Благовещенская, б/о «Русалочка»\n"
             "📞 Отдел бронирования: +7 (918) 47-74-366\n"
-            "✉️️ E-mail: anaparusalochka@rambler.ru\n"
+            "✉️ E-mail: anaparusalochka@rambler.ru\n"
             "🌐 Сайт: https://rusalo4ka.com/\n\n"
-            f"📍 Координаты: {GEO_LATITUDE}, {GEO_LONGITUDE}"
+            f"📍 Координаты навигатора: {GEO_LATITUDE}, {GEO_LONGITUDE}"
         )
         buttons = [
-            [{"text": "📄 Скачать правила (PDF)", "payload": "faq_pdf"}],
+            [{"text": "📄 Скачать правила проживания (PDF)", "payload": "faq_pdf"}],
             [{"text": "💬 Задать вопрос в чате", "payload": "menu_feedback"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await max_bot.send_message(chat_id, contacts_text, buttons)
+        await max_bot.send_message(chat_id=chat_id, text=contacts_text, buttons=buttons, keyboard_type="inline")
 
     elif text == "❓ Вопросы и ответы (FAQ)" or payload == "menu_faq":
-        await max_bot.send_message(chat_id, "Часто задаваемые вопросы", get_faq_buttons())
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text="Часто задаваемые вопросы:",
+            buttons=get_faq_inline_buttons(),
+            keyboard_type="inline"
+        )
 
     elif payload == "faq_checkin":
         ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы Вас заселим раньше."
-        await max_bot.send_message(chat_id, ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=ans,
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            keyboard_type="inline"
+        )
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
-        await max_bot.send_message(chat_id, ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=ans,
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            keyboard_type="inline"
+        )
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
-        await max_bot.send_message(chat_id, ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=ans,
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            keyboard_type="inline"
+        )
 
     elif payload == "faq_refund":
         ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до забронированной даты, после - взимается 100% от размера предоплаты. В экстренном случае обращайтесь на электронную почту."
-        await max_bot.send_message(chat_id, ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=ans,
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            keyboard_type="inline"
+        )
 
     elif payload == "faq_pets":
         ans = (
@@ -454,9 +542,9 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "📄 Посмотреть полные правила (PDF)", "payload": "faq_pdf"}],
-            [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
+            [{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]
         ]
-        await max_bot.send_message(chat_id, ans, buttons)
+        await max_bot.send_message(chat_id=chat_id, text=ans, buttons=buttons, keyboard_type="inline")
 
     elif payload == "faq_pdf":
         await max_bot.send_document(
@@ -471,12 +559,17 @@ async def handle_webhook(request: web.Request):
             "💬 Задать вопрос администратору базы отдыха\n\n"
             "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
         )
-        await max_bot.send_message(chat_id, prompt, get_cancel_button())
+        await max_bot.send_message(
+            chat_id=chat_id,
+            text=prompt,
+            buttons=get_cancel_reply_keyboard(),
+            keyboard_type="reply"
+        )
 
     return web.Response(text="OK")
 
 # =====================================================================
-# ТОЧКА ВХОДА (HTTP-СЕРВЕР AIOHTTP)
+# 5. ТОЧКА ВХОДА
 # =====================================================================
 app = web.Application()
 app.router.add_post("/webhook", handle_webhook)
@@ -484,5 +577,5 @@ app.router.add_post("/webhook", handle_webhook)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
     port = int(os.getenv("PORT", 8080))
-    logging.info(f"Запуск веб-сервера бота MAX на порту {port}...")
+    logging.info(f"Запуск сервера бота MAX на порту {port}...")
     web.run_app(app, host="0.0.0.0", port=port)
