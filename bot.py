@@ -254,7 +254,7 @@ class MaxBotClient:
             async with ClientSession(connector=self._get_connector()) as session:
                 async with session.get(url, headers=self.headers) as resp:
                     data = await resp.text()
-                    logging.info(f"Проверка /me в MAX API: статус={resp.status}, ответ={data}")
+                    logging.info(f"Проверка /me: статус={resp.status}, ответ={data}")
         except Exception as e:
             logging.error(f"Ошибка вызова /me: {e}")
 
@@ -265,35 +265,31 @@ class MaxBotClient:
             async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=self.headers, json=payload) as resp:
                     resp_text = await resp.text()
-                    logging.info(f"Регистрация Webhook в MAX (/subscriptions): статус={resp.status}, ответ={resp_text}")
+                    logging.info(f"Регистрация Webhook (/subscriptions): статус={resp.status}, ответ={resp_text}")
         except Exception as e:
             logging.error(f"Не удалось отправить запрос подписки: {e}")
 
-    async def answer_callback(self, callback_id: str, notification: str = None) -> None:
+    async def answer_callback(self, callback_id: str) -> None:
+        """Подтверждение обработки нажатия кнопки"""
         if not callback_id:
             return
         url = f"{self.base_url}/answers"
         params = {"callback_id": callback_id}
-        payload = {}
-        if notification:
-            payload["notification"] = notification
-
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
-                    pass
+                async with session.post(url, headers=self.headers, params=params, json={}) as resp:
+                    logging.info(f"Ответ на callback {callback_id}: {resp.status}")
         except Exception as e:
             logging.error(f"Ошибка answer_callback: {e}")
 
     async def send_message(
         self,
-        chat_id: Any,
+        chat_id: Optional[Any] = None,
+        user_id: Optional[Any] = None,
         text: str = "",
         buttons: List[List[Dict[str, str]]] = None
     ) -> bool:
         url = f"{self.base_url}/messages"
-        target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-        params = {"chat_id": target_cid}
 
         attachments = []
         if buttons:
@@ -305,7 +301,11 @@ class MaxBotClient:
                     if "url" in b:
                         new_row.append({"type": "link", "text": btn_text, "url": b["url"]})
                     else:
-                        new_row.append({"type": "callback", "text": btn_text, "payload": b.get("payload", btn_text)})
+                        new_row.append({
+                            "type": "callback",
+                            "text": btn_text,
+                            "payload": b.get("payload", btn_text)
+                        })
                 max_buttons.append(new_row)
 
             attachments.append({
@@ -319,13 +319,27 @@ class MaxBotClient:
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, params=params, json=payload) as resp:
-                    if resp.status in (200, 201):
-                        logging.info(f"✅ Успешно отправлено в чат {chat_id}")
-                        return True
-                    resp_text = await resp.text()
-                    logging.warning(f"Ошибка отправки ({resp.status}): {resp_text}")
-                    return False
+                # 1. Попытка отправить через chat_id
+                if chat_id:
+                    target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload) as resp:
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Успешно отправлено через ?chat_id={target_cid}")
+                            return True
+                        resp_text = await resp.text()
+                        logging.warning(f"Ошибка ?chat_id={target_cid} ({resp.status}): {resp_text}")
+
+                # 2. Если chat_id нет или вернулась ошибка — пробуем через user_id
+                if user_id:
+                    target_uid = int(user_id) if str(user_id).isdigit() else user_id
+                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload) as resp:
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Успешно отправлено через ?user_id={target_uid}")
+                            return True
+                        resp_text = await resp.text()
+                        logging.warning(f"Ошибка ?user_id={target_uid} ({resp.status}): {resp_text}")
+
+                return False
         except Exception as e:
             logging.error(f"Исключение при отправке сообщения: {e}")
             return False
@@ -377,7 +391,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ИСПРАВЛЕННЫМ DISPATCHER
+# 4. ОБРАБОТЧИК ВЕБХУКА MAX
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -391,57 +405,67 @@ async def handle_webhook(request: web.Request):
     message = data.get("message", {})
     body = message.get("body", {})
     recipient = message.get("recipient", {})
-    sender = message.get("sender", {}) or data.get("user", {})
     callback = data.get("callback", {})
-    callback_id = callback.get("callback_id")
+    callback_user = callback.get("user", {})
+    msg_sender = message.get("sender", {})
+    root_user = data.get("user", {})
 
-    # Игнорируем события самого бота
+    # Извлечение отправителя
+    sender = callback_user or msg_sender or root_user or {}
+
+    # Игнорируем эхо от самого бота
     if sender.get("is_bot") is True:
         return web.json_response({"status": "ok"})
 
-    # Мгновенно гасим индикатор ожидания на кнопке
+    # Мгновенно подтверждаем получение callback
+    callback_id = callback.get("callback_id") or data.get("callback_id")
     if callback_id:
         await max_bot.answer_callback(callback_id)
 
+    # Надежное извлечение chat_id
     chat_id = (
-        recipient.get("chat_id")
+        callback.get("chat_id")
+        or callback.get("message", {}).get("recipient", {}).get("chat_id")
+        or recipient.get("chat_id")
         or message.get("chat_id")
-        or callback.get("chat_id")
         or data.get("chat_id")
     )
-    user_id = str(
-        sender.get("user_id")
-        or callback.get("user_id")
+
+    # Надежное извлечение user_id
+    user_id = (
+        callback.get("user_id")
+        or sender.get("user_id")
         or data.get("user_id")
-        or ""
     )
+    user_id_str = str(user_id) if user_id else ""
     sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
-    # Текст сообщения
-    text = (body.get("text") or message.get("text") or "").strip()
-    
-    # Полезная нагрузка нажатой кнопки
+    # Извлечение действия (кнопка имеет наивысший приоритет)
     payload = callback.get("payload") or data.get("payload") or ""
+    text = (body.get("text") or message.get("text") or "").strip()
 
-    if not chat_id:
+    action = payload if payload else text
+
+    logging.info(f"Распознано действие: action='{action}', chat_id='{chat_id}', user_id='{user_id}'")
+
+    if not chat_id and not user_id:
+        logging.warning("Не удалось определить ни chat_id, ни user_id!")
         return web.json_response({"status": "ok"})
 
-    chat_id_str = str(chat_id)
+    chat_id_str = str(chat_id) if chat_id else ""
 
     async def reply(msg_text: str, btns: list = None):
         return await max_bot.send_message(
             chat_id=chat_id,
+            user_id=user_id,
             text=msg_text,
             buttons=btns
         )
 
-    # -------------------------------------------------------------
-    # 1. ОБРАБОТКА ОТВЕТА АДМИНИСТРАТОРА (В ГРУППЕ АДМИНОВ)
-    # -------------------------------------------------------------
+    # 1. ОТВЕТ АДМИНИСТРАТОРА (В ГРУППЕ АДМИНОВ)
     if str(ADMIN_CHAT_ID) != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         raw_msg_str = str(message)
         match = re.search(r"#user_(\d+)", raw_msg_str)
-        
         if match and text:
             target_guest_chat = match.group(1)
             guest_answer = (
@@ -450,23 +474,21 @@ async def handle_webhook(request: web.Request):
                 f"---------------------------------\n"
                 f"Если у вас есть еще вопросы, напишите их прямо сюда!"
             )
-            success = await max_bot.send_message(chat_id=target_guest_chat, text=guest_answer)
+            success = await max_bot.send_message(chat_id=target_guest_chat, user_id=target_guest_chat, text=guest_answer)
             if success:
                 await reply("✅ Ответ успешно доставлен гостю!")
             else:
                 await reply(f"⚠️ Не удалось доставить ответ гостю (ID: {target_guest_chat}).")
             return web.json_response({"status": "ok"})
 
-    # -------------------------------------------------------------
-    # 2. РЕЖИМ ОЖИДАНИЯ ВВОДА ВОПРОСА ОТ ГОСТЯ
-    # -------------------------------------------------------------
-    if USER_STATES.get(user_id) == "waiting_feedback":
-        if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
-            USER_STATES.pop(user_id, None)
+    # 2. РЕЖИМ ОЖИДАНИЯ ВВОДА ВОПРОСА ГОСТЕМ
+    if USER_STATES.get(user_id_str) == "waiting_feedback":
+        if action == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
+            USER_STATES.pop(user_id_str, None)
             await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
 
-        USER_STATES.pop(user_id, None)
+        USER_STATES.pop(user_id_str, None)
         await reply(
             "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\n"
             "Мы ответим вам прямо в этот диалог в ближайшее время.",
@@ -474,22 +496,20 @@ async def handle_webhook(request: web.Request):
         )
 
         if str(ADMIN_CHAT_ID) != "0":
+            # Используем chat_id диалога или личный user_id гостя
+            guest_ref = chat_id_str if chat_id_str else user_id_str
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ\n"
                 f"👤 Имя: {sender_name}\n"
                 f"💬 Вопрос:\n«{text}»\n\n"
                 f"👉 Чтобы ответить гостю, нажмите «Ответить» (Reply) на это сообщение.\n"
-                f"#user_{chat_id_str}"
+                f"#user_{guest_ref}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # -------------------------------------------------------------
-    # 3. ОБРАБОТКА НАЖАТИЙ НА ИНЛАЙН-КНОПКИ (PAYLOAD В ПРИОРИТЕТЕ)
-    # -------------------------------------------------------------
-    action = payload or text
-
-    if action in ["menu_root", "/start", "start"]:
+    # 3. МАРШРУТИЗАЦИЯ КНОПОК И КОМАНД
+    if action in ["menu_root", "/start", "start"] or update_type in ["bot_started", "chat_started"]:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
             "Отдых на первой береговой линии Черного моря (Анапа, станица Благовещенская).\n"
@@ -561,7 +581,7 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "🌐 Перейти на сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(about_text, buttons)
         return web.json_response({"status": "ok"})
@@ -569,7 +589,7 @@ async def handle_webhook(request: web.Request):
     elif action in ["menu_reviews", "⭐ Отзывы"]:
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
         ]
         await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
         return web.json_response({"status": "ok"})
@@ -637,7 +657,7 @@ async def handle_webhook(request: web.Request):
         return web.json_response({"status": "ok"})
 
     elif action in ["menu_feedback", "💬 Задать вопрос администратору"]:
-        USER_STATES[user_id] = "waiting_feedback"
+        USER_STATES[user_id_str] = "waiting_feedback"
         prompt = (
             "💬 Задать вопрос администратору базы отдыха\n\n"
             "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
@@ -645,9 +665,7 @@ async def handle_webhook(request: web.Request):
         await reply(prompt, get_cancel_buttons())
         return web.json_response({"status": "ok"})
 
-    # -------------------------------------------------------------
-    # 4. ОБЫЧНЫЙ ТЕКСТ ГОСТЯ (НЕ КНОПКА)
-    # -------------------------------------------------------------
+    # 4. ОБЫЧНЫЙ ТЕКСТ ГОСТЯ (НЕ НАЖАТИЕ НА КНОПКУ)
     elif text:
         prompt = (
             "Я получил ваше сообщение! 🌊\n\n"
