@@ -11,14 +11,16 @@ from dotenv import load_dotenv
 # =====================================================================
 load_dotenv()
 
+# Официальный рабочий домен API платформы MAX
+MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://platform-api2.max.ru")
+
 # Токен доступа платформы MAX
 BOT_TOKEN = os.getenv(
     "BOT_TOKEN",
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
-MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://api.max.ru/v1")
 
-# ID группы сотрудников/администраторов в MAX (0 — по умолчанию, пока не пойман в логах)
+# ID чата администраторов базы отдыха в MAX (по умолчанию 0)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
 
 # Публичный адрес вебхука на BotHost
@@ -33,7 +35,7 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Каталог номеров базы отдыха «Русалочка»
+# Номерной фонд базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -191,27 +193,45 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 # =====================================================================
-# 2. КЛИЕНТ API MAX
+# 2. КЛИЕНТ ДЛЯ ВЗАИМОДЕЙСТВИЯ С API MAX
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
         self.token = token
         self.base_url = base_url.rstrip("/")
 
-    async def register_webhook(self, webhook_target: str) -> None:
-        url = f"{self.base_url}/bot.setWebhook"
-        headers = {
-            "Authorization": f"Bearer {self.token}",
+    @property
+    def headers(self) -> Dict[str, str]:
+        # Авторизация по официальному стандарту MAX (без Bearer)
+        return {
+            "Authorization": self.token,
             "Content-Type": "application/json"
         }
-        payload = {"url": webhook_target}
+
+    async def get_me(self) -> None:
+        """Проверка валидности токена"""
+        url = f"{self.base_url}/me"
         try:
             async with ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as resp:
-                    resp_text = await resp.text()
-                    logging.info(f"Регистрация Webhook в MAX: статус={resp.status}, ответ={resp_text}")
+                async with session.get(url, headers=self.headers) as resp:
+                    data = await resp.text()
+                    logging.info(f"Проверка /me в MAX API: статус={resp.status}, ответ={data}")
         except Exception as e:
-            logging.error(f"Не удалось зарегистрировать Webhook: {e}")
+            logging.error(f"Ошибка вызова /me: {e}")
+
+    async def setup_subscription(self, webhook_target: str) -> None:
+        """Регистрация Webhook через подписку на события"""
+        url = f"{self.base_url}/subscriptions"
+        payload = {
+            "url": webhook_target
+        }
+        try:
+            async with ClientSession() as session:
+                async with session.post(url, headers=self.headers, json=payload) as resp:
+                    resp_text = await resp.text()
+                    logging.info(f"Регистрация Webhook в MAX (/subscriptions): статус={resp.status}, ответ={resp_text}")
+        except Exception as e:
+            logging.error(f"Не удалось отправить запрос подписки: {e}")
 
     async def send_message(
         self,
@@ -220,27 +240,32 @@ class MaxBotClient:
         buttons: List[List[Dict[str, str]]] = None,
         keyboard_type: str = "reply"
     ) -> bool:
-        url = f"{self.base_url}/messages.send"
-        headers = {
-            "Authorization": f"Bearer {self.token}",
-            "Content-Type": "application/json"
+        """Отправка сообщений пользователям и в группы"""
+        url = f"{self.base_url}/messages"
+        payload: Dict[str, Any] = {
+            "chat_id": chat_id,
+            "text": text,
         }
-        payload = {"chat_id": chat_id, "text": text}
         if buttons:
-            payload["keyboard"] = {"type": keyboard_type, "buttons": buttons}
+            payload["keyboard"] = {
+                "type": keyboard_type,
+                "buttons": buttons
+            }
 
         try:
             async with ClientSession() as session:
-                async with session.post(url, headers=headers, json=payload) as resp:
-                    return resp.status == 200
+                async with session.post(url, headers=self.headers, json=payload) as resp:
+                    if resp.status not in (200, 201):
+                        resp_text = await resp.text()
+                        logging.warning(f"MAX API вернул ошибку {resp.status}: {resp_text}")
+                    return resp.status in (200, 201)
         except Exception as e:
-            logging.error(f"Ошибка отправки сообщения в MAX: {e}")
+            logging.error(f"Исключение при отправке сообщения в MAX: {e}")
             return False
 
     async def send_document(self, chat_id: str, file_path: str, caption: str = "") -> bool:
-        url = f"{self.base_url}/messages.sendDocument"
-        headers = {"Authorization": f"Bearer {self.token}"}
-
+        """Отправка документов (правил в PDF)"""
+        url = f"{self.base_url}/messages"
         if not os.path.exists(file_path):
             return await self.send_message(
                 chat_id=chat_id,
@@ -251,14 +276,15 @@ class MaxBotClient:
         try:
             data = web.FormData()
             data.add_field('chat_id', str(chat_id))
-            data.add_field('caption', caption)
-            data.add_field('document', open(file_path, 'rb'), filename=os.path.basename(file_path))
+            data.add_field('text', caption)
+            data.add_field('file', open(file_path, 'rb'), filename=os.path.basename(file_path))
 
+            headers = {"Authorization": self.token}
             async with ClientSession() as session:
                 async with session.post(url, headers=headers, data=data) as resp:
-                    return resp.status == 200
+                    return resp.status in (200, 201)
         except Exception as e:
-            logging.error(f"Ошибка отправки файла в MAX: {e}")
+            logging.error(f"Ошибка отправки документа: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
@@ -304,7 +330,7 @@ def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК WEBHOOK (POST)
+# 4. ОБРАБОТЧИК ВЕБХУКА (POST)
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -312,7 +338,7 @@ async def handle_webhook(request: web.Request):
     except Exception:
         return web.Response(status=400)
 
-    # Логирование входящего JSON в панель BotHost
+    # Логирование входящего запроса для BotHost
     logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
     event_type = data.get("type", "")
@@ -325,7 +351,7 @@ async def handle_webhook(request: web.Request):
     payload = data.get("payload") or message.get("payload") or ""
 
     if not chat_id:
-        return web.Response(text="OK")
+        return web.json_response({"status": "ok"})
 
     # 1. Ответ администратора из группы поддержки MAX (через Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
@@ -337,7 +363,7 @@ async def handle_webhook(request: web.Request):
             admin_answer = f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n{text}"
             await max_bot.send_message(chat_id=target_user_id, text=admin_answer, keyboard_type="reply")
             await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!", keyboard_type="inline")
-            return web.Response(text="OK")
+            return web.json_response({"status": "ok"})
 
     # 2. Обработка ввода вопроса гостем
     if USER_STATES.get(sender_id) == "waiting_feedback":
@@ -349,7 +375,7 @@ async def handle_webhook(request: web.Request):
                 buttons=get_main_menu_reply_keyboard(),
                 keyboard_type="reply"
             )
-            return web.Response(text="OK")
+            return web.json_response({"status": "ok"})
 
         USER_STATES.pop(sender_id, None)
         await max_bot.send_message(
@@ -369,7 +395,7 @@ async def handle_webhook(request: web.Request):
                 f"#user_{sender_id}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
-        return web.Response(text="OK")
+        return web.json_response({"status": "ok"})
 
     # 3. Реакция на старт (/start, кнопка старта или системный переход)
     is_start = (
@@ -394,7 +420,7 @@ async def handle_webhook(request: web.Request):
             buttons=get_main_menu_reply_keyboard(),
             keyboard_type="reply"
         )
-        return web.Response(text="OK")
+        return web.json_response({"status": "ok"})
 
     elif text == "🏡 Наши номера" or payload == "menu_rooms":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию для просмотра описания и стоимости:"
@@ -472,7 +498,7 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "⬅ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await max_bot.send_message(chat_id=chat_id, text=about_text, buttons=buttons, keyboard_type="inline")
 
@@ -544,7 +570,7 @@ async def handle_webhook(request: web.Request):
         await max_bot.send_message(
             chat_id=chat_id,
             text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            buttons=[[{"text": "⬅ Назад в FAQ", "payload": "menu_faq"}]],
             keyboard_type="inline"
         )
 
@@ -581,10 +607,10 @@ async def handle_webhook(request: web.Request):
             keyboard_type="reply"
         )
 
-    return web.Response(text="OK")
+    return web.json_response({"status": "ok"})
 
 # =====================================================================
-# 5. СТРАНИЦА ДЛЯ GET-ЗАПРОСОВ (ПРОВЕРКА РАБОТОСПОСОБНОСТИ)
+# 5. СТРАНИЦА ДЛЯ GET-ЗАПРОСОВ (HEALTHCHECK)
 # =====================================================================
 async def handle_get(request: web.Request):
     html_page = """<!DOCTYPE html>
@@ -612,11 +638,13 @@ async def handle_get(request: web.Request):
     return web.Response(text=html_page, content_type="text/html", status=200)
 
 # =====================================================================
-# 6. АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ WEBHOOK ПРИ ЗАПУСКЕ
+# 6. АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ ПРИ ЗАПУСКЕ СЕРВЕРА
 # =====================================================================
 async def on_startup(app_instance: web.Application):
-    logging.info(f"Регистрируем Webhook: {WEBHOOK_URL}...")
-    await max_bot.register_webhook(WEBHOOK_URL)
+    logging.info("Проверка токена в MAX API...")
+    await max_bot.get_me()
+    logging.info(f"Регистрируем подписку на Webhook: {WEBHOOK_URL}...")
+    await max_bot.setup_subscription(WEBHOOK_URL)
 
 # =====================================================================
 # 7. ИНИЦИАЛИЗАЦИЯ И СТАРТ СЕРВЕРА
