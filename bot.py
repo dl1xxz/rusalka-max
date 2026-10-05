@@ -27,11 +27,10 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Каталог номеров базы отдыха «Русалочка» с прямыми ссылками на фотографии
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/apart-2p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/apart-2p.jpg",
         "description": (
             "🏡 Номер с кухней (апарт.) 2-х местный + доп.место\n\n"
             "Уютный семейный апартамент с индивидуальной кухонной зоной.\n\n"
@@ -48,7 +47,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "kitchen_3p": {
         "title": "Номер с кухней (апарт.) 3-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/apart-3p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/apart-3p.jpg",
         "description": (
             "🏡 Номер с кухней (апарт.) 3-х местный + доп.место\n\n"
             "Просторный апартамент для комфортного отдыха всей семьей.\n\n"
@@ -65,7 +64,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_1k_2p": {
         "title": "Эко-домик 1-комнатный 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/eco-1k-2p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/eco-1k.jpg",
         "description": (
             "🏡 Эко-домик 1-комнатный 2-х местный + доп.место\n\n"
             "Отдельный домик из экологически чистого натурального бруса.\n\n"
@@ -81,7 +80,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "eco_2k_3p": {
         "title": "Эко-домик 2-комнатный 3-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/eco-2k-3p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/eco-2k.jpg",
         "description": (
             "🏡 Эко-домик 2-комнатный 3-х местный + доп.место\n\n"
             "Двухкомнатный коттедж из бруса для большой семьи.\n\n"
@@ -98,7 +97,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_brick_3p": {
         "title": "СТАНДАРТ кирпичный домик 3-х местный",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-brick-3p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/brick-3p.jpg",
         "description": (
             "🏡 СТАНДАРТ кирпичный домик 3-х местный\n\n"
             "Капитальный прохладный домик для отдыха 3 человек.\n\n"
@@ -114,7 +113,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_wood_2p": {
         "title": "СТАНДАРТ Деревянный домик 2-х местный",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-wood-2p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/wood-2p.jpg",
         "description": (
             "🏡 СТАНДАРТ Деревянный домик 2-х местный\n\n"
             "Уютный деревянный домик для двоих в тишине и зелени.\n\n"
@@ -130,7 +129,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p": {
         "title": "СТАНДАРТ 2-х местный",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-2p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-2p.jpg",
         "description": (
             "🏡 СТАНДАРТ 2-х местный\n\n"
             "Классический номер для 2 гостей.\n\n"
@@ -146,7 +145,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_2p_extra": {
         "title": "СТАНДАРТ 2-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-2p-extra.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-2p-extra.jpg",
         "description": (
             "🏡 СТАНДАРТ 2-х местный + доп.место\n\n"
             "Номер категории стандарт для семьи до 3 человек.\n\n"
@@ -162,7 +161,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_3p": {
         "title": "СТАНДАРТ 3-х местный",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-3p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-3p.jpg",
         "description": (
             "🏡 СТАНДАРТ 3-х местный\n\n"
             "Просторный 3-местный номер стандартной категории.\n\n"
@@ -178,7 +177,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
     "std_4p": {
         "title": "СТАНДАРТ 4-х местный + доп.место",
-        "photo_url": "https://rusalo4ka.com/images/rooms/std-4p.jpg",
+        "photo_url": "https://rusalo4ka.com/wp-content/uploads/2023/04/std-4p.jpg",
         "description": (
             "🏡 СТАНДАРТ 4-х местный + доп.место\n\n"
             "Семейный просторный номер на 4–5 гостей.\n\n"
@@ -249,82 +248,90 @@ class MaxBotClient:
         except Exception as e:
             logging.error(f"Ошибка answer_callback: {e}")
 
+    def _build_buttons_payload(self, buttons: List[List[Dict[str, str]]]) -> Dict[str, Any]:
+        max_buttons = []
+        for row in buttons:
+            new_row = []
+            for b in row:
+                btn_text = b.get("text", "")
+                if "url" in b:
+                    new_row.append({
+                        "type": "link",
+                        "text": btn_text,
+                        "url": b["url"]
+                    })
+                else:
+                    new_row.append({
+                        "type": "callback",
+                        "text": btn_text,
+                        "payload": b.get("payload", btn_text)
+                    })
+            max_buttons.append(new_row)
+        return {
+            "type": "inline_keyboard",
+            "payload": {
+                "buttons": max_buttons
+            }
+        }
+
     async def send_message(
         self,
-        chat_id: Optional[Any] = None,
-        user_id: Optional[Any] = None,
+        chat_id: Any,
         text: str = "",
         buttons: List[List[Dict[str, str]]] = None,
         photo_url: Optional[str] = None
     ) -> bool:
         url = f"{self.base_url}/messages"
+        target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
+        params = {"chat_id": target_cid}
 
-        attachments = []
-
-        # 1. Прикрепление фото
+        # 1. Попытка отправки с фото (если фото указано)
         if photo_url:
-            attachments.append({
-                "type": "image",
-                "payload": {
-                    "url": photo_url
+            attachments_with_photo = [
+                {
+                    "type": "image",
+                    "payload": {
+                        "url": photo_url
+                    }
                 }
-            })
+            ]
+            if buttons:
+                attachments_with_photo.append(self._build_buttons_payload(buttons))
 
-        # 2. Прикрепление клавиатуры
+            payload_photo = {
+                "text": text,
+                "attachments": attachments_with_photo
+            }
+
+            try:
+                async with ClientSession(connector=self._get_connector()) as session:
+                    async with session.post(url, headers=self.headers, params=params, json=payload_photo) as resp:
+                        if resp.status in (200, 201):
+                            logging.info(f"✅ Карточка номера с фото отправлена в чат {chat_id}")
+                            return True
+                        resp_err = await resp.text()
+                        logging.warning(f"MAX не смог загрузить изображение ({resp.status}): {resp_err}. Переключаемся на отправку текста...")
+            except Exception as e:
+                logging.error(f"Ошибка при попытке отправки фото: {e}")
+
+        # 2. Надёжная отправка без фото (текст + клавиатура)
+        attachments = []
         if buttons:
-            max_buttons = []
-            for row in buttons:
-                new_row = []
-                for b in row:
-                    btn_text = b.get("text", "")
-                    if "url" in b:
-                        new_row.append({
-                            "type": "link",
-                            "text": btn_text,
-                            "url": b["url"]
-                        })
-                    else:
-                        new_row.append({
-                            "type": "callback",
-                            "text": btn_text,
-                            "payload": b.get("payload", btn_text)
-                        })
-                max_buttons.append(new_row)
+            attachments.append(self._build_buttons_payload(buttons))
 
-            attachments.append({
-                "type": "inline_keyboard",
-                "payload": {
-                    "buttons": max_buttons
-                }
-            })
-
-        payload = {"text": text}
+        payload_text = {"text": text}
         if attachments:
-            payload["attachments"] = attachments
+            payload_text["attachments"] = attachments
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                # Отправка по user_id (личка)
-                if user_id:
-                    target_uid = int(user_id) if str(user_id).isdigit() else user_id
-                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload) as resp:
-                        if resp.status in (200, 201):
-                            logging.info(f"✅ Сообщение успешно отправлено через ?user_id={target_uid}")
-                            return True
-                        resp_text = await resp.text()
-                        logging.warning(f"Ошибка отправки ?user_id={target_uid} ({resp.status}): {resp_text}")
-
-                # Отправка по chat_id (группа/диалог)
-                if chat_id:
-                    target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload) as resp:
-                        if resp.status in (200, 201):
-                            logging.info(f"✅ Сообщение успешно отправлено через ?chat_id={target_cid}")
-                            return True
-                        resp_text = await resp.text()
-                        logging.warning(f"Ошибка отправки ?chat_id={target_cid} ({resp.status}): {resp_text}")
-
-                return False
+                async with session.post(url, headers=self.headers, params=params, json=payload_text) as resp:
+                    if resp.status in (200, 201):
+                        logging.info(f"✅ Сообщение успешно отправлено в чат {chat_id}")
+                        return True
+                    resp_text = await resp.text()
+                    logging.warning(f"Ошибка отправки в чат {chat_id} ({resp.status}): {resp_text}")
+                    return False
         except Exception as e:
             logging.error(f"Исключение при отправке сообщения в MAX: {e}")
             return False
@@ -350,14 +357,16 @@ def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
     buttons = []
     for key, data in ROOMS_CATALOG.items():
         buttons.append([{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}])
-    buttons.append([{"text": "⬅️️ В главное меню", "payload": "menu_root"}])
+    buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
     return buttons
 
-def get_single_room_buttons() -> List[List[Dict[str, str]]]:
-    return [
-        [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
-        [{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}]
-    ]
+def get_single_room_buttons(photo_url: Optional[str] = None) -> List[List[Dict[str, str]]]:
+    btns = []
+    if photo_url:
+        btns.append([{"text": "🖼 Фотографии номера на сайте", "url": photo_url}])
+    btns.append([{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}])
+    btns.append([{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}])
+    return btns
 
 def get_faq_buttons() -> List[List[Dict[str, str]]]:
     return [
@@ -399,52 +408,51 @@ async def handle_webhook(request: web.Request):
         or callback.get("chat_id")
         or data.get("chat_id")
     )
-    user_id = (
+    user_id = str(
         sender.get("user_id")
         or callback.get("user_id")
         or data.get("user_id")
+        or ""
     )
     sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
     text = (body.get("text") or message.get("text") or "").strip()
     payload = callback.get("payload") or data.get("payload") or ""
 
-    if not chat_id and not user_id:
+    if not chat_id:
         return web.json_response({"status": "ok"})
 
-    user_id_str = str(user_id) if user_id else ""
-    chat_id_str = str(chat_id) if chat_id else ""
+    chat_id_str = str(chat_id)
 
     async def reply(msg_text: str, btns: list = None, photo: str = None):
         return await max_bot.send_message(
             chat_id=chat_id,
-            user_id=user_id,
             text=msg_text,
             buttons=btns,
             photo_url=photo
         )
 
-    # 1. Ответ администратора из группы поддержки MAX (через цитирование)
+    # 1. Ответ администратора
     if ADMIN_CHAT_ID != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_body = reply_to.get("body", {})
         reply_text = reply_body.get("text", "") or reply_to.get("text", "")
         match = re.search(r"#user_(\d+)", reply_text)
         if match:
-            target_user_id = match.group(1)
+            target_chat_id = match.group(1)
             admin_answer = f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n{text}"
-            await max_bot.send_message(user_id=target_user_id, text=admin_answer)
+            await max_bot.send_message(chat_id=target_chat_id, text=admin_answer)
             await reply("✅ Ответ успешно доставлен гостю!")
             return web.json_response({"status": "ok"})
 
     # 2. Обработка ввода вопроса гостем
-    if USER_STATES.get(user_id_str) == "waiting_feedback":
+    if USER_STATES.get(user_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
-            USER_STATES.pop(user_id_str, None)
+            USER_STATES.pop(user_id, None)
             await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
 
-        USER_STATES.pop(user_id_str, None)
+        USER_STATES.pop(user_id, None)
         await reply(
             "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\nМы ответим вам прямо в этот диалог в ближайшее время.",
             get_main_menu_buttons()
@@ -454,10 +462,10 @@ async def handle_webhook(request: web.Request):
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ В MAX\n"
                 f"👤 Гость: {sender_name}\n"
-                f"🆔 ID: {user_id_str}\n\n"
+                f"🆔 ID: {chat_id_str}\n\n"
                 f"💬 Вопрос:\n{text}\n\n"
                 f"👉 Чтобы ответить гостю, ответьте цитатой (Reply) на это сообщение.\n"
-                f"#user_{user_id_str}"
+                f"#user_{chat_id_str}"
             )
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
@@ -490,10 +498,11 @@ async def handle_webhook(request: web.Request):
         room_key = payload.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
+            p_url = room.get("photo_url")
             await reply(
                 msg_text=room["description"],
-                btns=get_single_room_buttons(),
-                photo=room.get("photo_url")
+                btns=get_single_room_buttons(p_url),
+                photo=p_url
             )
 
     elif text == "📝 Забронировать" or payload == "menu_book":
@@ -577,7 +586,7 @@ async def handle_webhook(request: web.Request):
 
     elif payload == "faq_checkout":
         ans = "Во сколько выселение из номера?\n\n— освободить номер нужно до 11:00, ключи, брелоки и браслеты от номера нужно сдать в администрации."
-        await reply(ans, [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]])
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
 
     elif payload == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера (домика) производится после перечисления предоплаты (30% от полной стоимости проживания)."
@@ -603,11 +612,11 @@ async def handle_webhook(request: web.Request):
     elif payload == "faq_pdf":
         await reply(
             "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
-            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
+            [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]]
         )
 
     elif text == "💬 Остались вопросы? Напишите нам" or payload == "menu_feedback":
-        USER_STATES[user_id_str] = "waiting_feedback"
+        USER_STATES[user_id] = "waiting_feedback"
         prompt = (
             "💬 Задать вопрос администратору базы отдыха\n\n"
             "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
