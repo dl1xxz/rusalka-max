@@ -6,19 +6,13 @@ from typing import Dict, Any, List
 from aiohttp import web, ClientSession
 from dotenv import load_dotenv
 
-# =====================================================================
-# 1. КОНФИГУРАЦИЯ И ДАННЫЕ
-# =====================================================================
 load_dotenv()
 
-# Токен бота MAX
 BOT_TOKEN = os.getenv(
     "BOT_TOKEN",
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
 MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://api.max.ru/v1")
-
-# ID группы администраторов в MAX (по умолчанию 0, пока не пойман из логов)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
@@ -30,7 +24,6 @@ GEO_LONGITUDE = 37.086375
 
 USER_STATES: Dict[str, str] = {}
 
-# Каталог номеров базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -187,9 +180,6 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# =====================================================================
-# 2. КЛИЕНТ ДЛЯ ОТПРАВКИ СООБЩЕНИЙ В MAX
-# =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
         self.token = token
@@ -200,29 +190,23 @@ class MaxBotClient:
         chat_id: str,
         text: str,
         buttons: List[List[Dict[str, str]]] = None,
-        keyboard_type: str = "reply"  # "reply" — нижние кнопки клавиатуры, "inline" — кнопки под сообщением
+        keyboard_type: str = "reply"
     ) -> bool:
         url = f"{self.base_url}/messages.send"
         headers = {
             "Authorization": f"Bearer {self.token}",
             "Content-Type": "application/json"
         }
-        payload = {
-            "chat_id": chat_id,
-            "text": text,
-        }
+        payload = {"chat_id": chat_id, "text": text}
         if buttons:
-            payload["keyboard"] = {
-                "type": keyboard_type,
-                "buttons": buttons
-            }
+            payload["keyboard"] = {"type": keyboard_type, "buttons": buttons}
 
         try:
             async with ClientSession() as session:
                 async with session.post(url, headers=headers, json=payload) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки сообщения в MAX: {e}")
+            logging.error(f"Ошибка отправки сообщения: {e}")
             return False
 
     async def send_document(self, chat_id: str, file_path: str, caption: str = "") -> bool:
@@ -232,7 +216,7 @@ class MaxBotClient:
         if not os.path.exists(file_path):
             return await self.send_message(
                 chat_id=chat_id,
-                text=f"{caption}\n(Файл временно обновляется на сервере: https://rusalo4ka.com/)",
+                text=f"{caption}\n(Официальные правила доступны на сайте: https://rusalo4ka.com/)",
                 keyboard_type="inline"
             )
 
@@ -246,16 +230,11 @@ class MaxBotClient:
                 async with session.post(url, headers=headers, data=data) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки файла в MAX: {e}")
+            logging.error(f"Ошибка отправки файла: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
-# =====================================================================
-# 3. КЛАВИАТУРЫ
-# =====================================================================
-
-# Главное меню (нижняя выползающая клавиатура / reply)
 def get_main_menu_reply_keyboard() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "🏡 Наши номера", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
@@ -265,11 +244,9 @@ def get_main_menu_reply_keyboard() -> List[List[Dict[str, str]]]:
         [{"text": "💬 Остались вопросы? Напишите нам", "payload": "menu_feedback"}]
     ]
 
-# Кнопка отмены при вводе вопроса (нижняя клавиатура)
 def get_cancel_reply_keyboard() -> List[List[Dict[str, str]]]:
     return [[{"text": "❌ Отменить вопрос", "payload": "cancel_feedback"}]]
 
-# Список номеров (инлайн-кнопки под сообщением)
 def get_rooms_list_inline_buttons() -> List[List[Dict[str, str]]]:
     buttons = []
     for key, data in ROOMS_CATALOG.items():
@@ -277,14 +254,12 @@ def get_rooms_list_inline_buttons() -> List[List[Dict[str, str]]]:
     buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
     return buttons
 
-# Кнопки под описанием выбранного номера (инлайн)
 def get_single_room_inline_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
         [{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}]
     ]
 
-# Меню FAQ (инлайн-кнопки под сообщением)
 def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "Во сколько заселение?", "payload": "faq_checkin"}],
@@ -297,18 +272,15 @@ def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
     ]
 
-# =====================================================================
-# 4. ОБРАБОТЧИК WEBHOOK
-# =====================================================================
 async def handle_webhook(request: web.Request):
     try:
         data = await request.json()
     except Exception:
         return web.Response(status=400)
 
-    # Логирование входящих данных — позволяет сразу увидеть chat_id в панели BotHost
     logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
+    event_type = data.get("type", "")
     message = data.get("message", {})
     chat_id = str(message.get("chat_id") or data.get("chat_id") or "")
     sender = message.get("from", {})
@@ -320,7 +292,7 @@ async def handle_webhook(request: web.Request):
     if not chat_id:
         return web.Response(text="OK")
 
-    # 1. Ответ администратора из группы поддержки (через Reply)
+    # Ответ администратора из группы поддержки (Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_text = reply_to.get("text", "")
@@ -332,7 +304,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=chat_id, text="✅ Ответ успешно доставлен гостю!", keyboard_type="inline")
             return web.Response(text="OK")
 
-    # 2. Обработка ввода вопроса гостем
+    # Обработка ввода вопроса гостем
     if USER_STATES.get(sender_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(sender_id, None)
@@ -364,15 +336,22 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
         return web.Response(text="OK")
 
-    # 3. Главное меню и навигация
-    if text.startswith("/start") or payload == "menu_root":
+    # Реакция на старт (кнопка «Начать», команда /start или событие открытия диалога)
+    is_start = (
+        text.startswith("/start")
+        or payload == "menu_root"
+        or event_type in ["bot_started", "chat_started", "user_added", "start"]
+        or (not text and not payload)
+    )
+
+    if is_start:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
             "Отдых на песчаном побережье Черного моря (Анапа, ст. Благовещенская).\n"
             "Ухоженная зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
             "📅 Период работы: с 15 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
-            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️"
+            "Ознакомьтесь с номерным фондом и услугами базы в меню ниже ⬇️️"
         )
         await max_bot.send_message(
             chat_id=chat_id,
@@ -380,6 +359,7 @@ async def handle_webhook(request: web.Request):
             buttons=get_main_menu_reply_keyboard(),
             keyboard_type="reply"
         )
+        return web.Response(text="OK")
 
     elif text == "🏡 Наши номера" or payload == "menu_rooms":
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию для просмотра описания и стоимости:"
@@ -529,7 +509,7 @@ async def handle_webhook(request: web.Request):
         await max_bot.send_message(
             chat_id=chat_id,
             text=ans,
-            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
+            buttons=[[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]],
             keyboard_type="inline"
         )
 
@@ -542,7 +522,7 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "📄 Посмотреть полные правила (PDF)", "payload": "faq_pdf"}],
-            [{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]
+            [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
         ]
         await max_bot.send_message(chat_id=chat_id, text=ans, buttons=buttons, keyboard_type="inline")
 
@@ -568,14 +548,11 @@ async def handle_webhook(request: web.Request):
 
     return web.Response(text="OK")
 
-# =====================================================================
-# 5. ТОЧКА ВХОДА
-# =====================================================================
 app = web.Application()
 app.router.add_post("/webhook", handle_webhook)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-    port = int(os.getenv("PORT", 8080))
+    port = int(os.getenv("PORT", 3000))
     logging.info(f"Запуск сервера бота MAX на порту {port}...")
     web.run_app(app, host="0.0.0.0", port=port)
