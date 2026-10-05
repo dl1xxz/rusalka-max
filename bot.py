@@ -18,8 +18,11 @@ BOT_TOKEN = os.getenv(
 )
 MAX_API_BASE_URL = os.getenv("MAX_API_BASE_URL", "https://api.max.ru/v1")
 
-# ID группы администраторов в MAX (0 — по умолчанию, пока не пойман в логах)
+# ID группы сотрудников/администраторов в MAX (0 — по умолчанию, пока не пойман в логах)
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "0")
+
+# Публичный адрес вебхука на BotHost
+WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
 
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
 REVIEWS_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
@@ -195,6 +198,21 @@ class MaxBotClient:
         self.token = token
         self.base_url = base_url.rstrip("/")
 
+    async def register_webhook(self, webhook_target: str) -> None:
+        url = f"{self.base_url}/bot.setWebhook"
+        headers = {
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json"
+        }
+        payload = {"url": webhook_target}
+        try:
+            async with ClientSession() as session:
+                async with session.post(url, headers=headers, json=payload) as resp:
+                    resp_text = await resp.text()
+                    logging.info(f"Регистрация Webhook в MAX: статус={resp.status}, ответ={resp_text}")
+        except Exception as e:
+            logging.error(f"Не удалось зарегистрировать Webhook: {e}")
+
     async def send_message(
         self,
         chat_id: str,
@@ -216,7 +234,7 @@ class MaxBotClient:
                 async with session.post(url, headers=headers, json=payload) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки сообщения: {e}")
+            logging.error(f"Ошибка отправки сообщения в MAX: {e}")
             return False
 
     async def send_document(self, chat_id: str, file_path: str, caption: str = "") -> bool:
@@ -240,7 +258,7 @@ class MaxBotClient:
                 async with session.post(url, headers=headers, data=data) as resp:
                     return resp.status == 200
         except Exception as e:
-            logging.error(f"Ошибка отправки файла: {e}")
+            logging.error(f"Ошибка отправки файла в MAX: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
@@ -282,7 +300,7 @@ def get_faq_inline_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "Возможно размещение с животными?", "payload": "faq_pets"}],
         [{"text": "📄 Посмотреть полные правила (PDF)", "payload": "faq_pdf"}],
         [{"text": "💬 Задать свой вопрос", "payload": "menu_feedback"}],
-        [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+        [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
     ]
 
 # =====================================================================
@@ -294,7 +312,7 @@ async def handle_webhook(request: web.Request):
     except Exception:
         return web.Response(status=400)
 
-    # Логирование входящих данных для BotHost
+    # Логирование входящего JSON в панель BotHost
     logging.info(f"--- ВХОДЯЩИЙ WEBHOOK MAX ---: {data}")
 
     event_type = data.get("type", "")
@@ -309,7 +327,7 @@ async def handle_webhook(request: web.Request):
     if not chat_id:
         return web.Response(text="OK")
 
-    # 1. Ответ администратора из группы поддержки (через Reply)
+    # 1. Ответ администратора из группы поддержки MAX (через Reply)
     if ADMIN_CHAT_ID != "0" and chat_id == str(ADMIN_CHAT_ID):
         reply_to = message.get("reply_to", {})
         reply_text = reply_to.get("text", "")
@@ -353,7 +371,7 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket, keyboard_type="inline")
         return web.Response(text="OK")
 
-    # 3. Реакция на старт (кнопка «Начать», /start или системное открытие)
+    # 3. Реакция на старт (/start, кнопка старта или системный переход)
     is_start = (
         text.startswith("/start")
         or payload == "menu_root"
@@ -454,7 +472,7 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "🌐 Открыть сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅ В главное меню", "payload": "menu_root"}]
         ]
         await max_bot.send_message(chat_id=chat_id, text=about_text, buttons=buttons, keyboard_type="inline")
 
@@ -526,7 +544,7 @@ async def handle_webhook(request: web.Request):
         await max_bot.send_message(
             chat_id=chat_id,
             text=ans,
-            buttons=[[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]],
+            buttons=[[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]],
             keyboard_type="inline"
         )
 
@@ -566,7 +584,7 @@ async def handle_webhook(request: web.Request):
     return web.Response(text="OK")
 
 # =====================================================================
-# 5. ОБРАБОТЧИК ДЛЯ ВЕБ-ОКНА И GET-ЗАПРОСОВ
+# 5. СТРАНИЦА ДЛЯ GET-ЗАПРОСОВ (ПРОВЕРКА РАБОТОСПОСОБНОСТИ)
 # =====================================================================
 async def handle_get(request: web.Request):
     html_page = """<!DOCTYPE html>
@@ -576,39 +594,11 @@ async def handle_get(request: web.Request):
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>База отдыха «Русалочка»</title>
         <style>
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                background: #0f172a;
-                color: #f8fafc;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-                text-align: center;
-                padding: 20px;
-                box-sizing: border-box;
-            }
-            .card {
-                background: #1e293b;
-                padding: 30px;
-                border-radius: 16px;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-                max-width: 400px;
-                width: 100%;
-            }
-            h1 { font-size: 20px; margin-bottom: 12px; color: #38bdf8; }
-            p { font-size: 14px; color: #94a3b8; line-height: 1.5; margin-bottom: 20px; }
-            .badge {
-                display: inline-block;
-                background: #10b981;
-                color: white;
-                padding: 4px 12px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: bold;
-            }
+            body { font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; margin: 0; text-align: center; }
+            .card { background: #1e293b; padding: 30px; border-radius: 16px; max-width: 360px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+            h1 { font-size: 20px; color: #38bdf8; margin-bottom: 10px; }
+            p { font-size: 14px; color: #94a3b8; }
+            .badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
         </style>
     </head>
     <body>
@@ -622,11 +612,18 @@ async def handle_get(request: web.Request):
     return web.Response(text=html_page, content_type="text/html", status=200)
 
 # =====================================================================
-# 6. ТОЧКА ВХОДА
+# 6. АВТОМАТИЧЕСКАЯ РЕГИСТРАЦИЯ WEBHOOK ПРИ ЗАПУСКЕ
+# =====================================================================
+async def on_startup(app_instance: web.Application):
+    logging.info(f"Регистрируем Webhook: {WEBHOOK_URL}...")
+    await max_bot.register_webhook(WEBHOOK_URL)
+
+# =====================================================================
+# 7. ИНИЦИАЛИЗАЦИЯ И СТАРТ СЕРВЕРА
 # =====================================================================
 app = web.Application()
+app.on_startup.append(on_startup)
 
-# Маршруты поддерживают GET и POST по обоим путям
 app.router.add_get("/", handle_get)
 app.router.add_post("/", handle_webhook)
 app.router.add_get("/webhook", handle_get)
