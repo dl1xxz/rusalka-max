@@ -377,7 +377,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
     ]
 
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ПОЛНЫМ РЕЛЕЕМ ПОДДЕРЖКИ
+# 4. ОБРАБОТЧИК ВЕБХУКА MAX С ИСПРАВЛЕННЫМ DISPATCHER
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -395,10 +395,11 @@ async def handle_webhook(request: web.Request):
     callback = data.get("callback", {})
     callback_id = callback.get("callback_id")
 
-    # Игнорируем любые исходящие события самого бота
+    # Игнорируем события самого бота
     if sender.get("is_bot") is True:
         return web.json_response({"status": "ok"})
 
+    # Мгновенно гасим индикатор ожидания на кнопке
     if callback_id:
         await max_bot.answer_callback(callback_id)
 
@@ -416,7 +417,10 @@ async def handle_webhook(request: web.Request):
     )
     sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
+    # Текст сообщения
     text = (body.get("text") or message.get("text") or "").strip()
+    
+    # Полезная нагрузка нажатой кнопки
     payload = callback.get("payload") or data.get("payload") or ""
 
     if not chat_id:
@@ -431,48 +435,44 @@ async def handle_webhook(request: web.Request):
             buttons=btns
         )
 
+    # -------------------------------------------------------------
     # 1. ОБРАБОТКА ОТВЕТА АДМИНИСТРАТОРА (В ГРУППЕ АДМИНОВ)
+    # -------------------------------------------------------------
     if str(ADMIN_CHAT_ID) != "0" and chat_id_str == str(ADMIN_CHAT_ID):
-        # Преобразуем всё сообщение в строку для поиска #user_<ID>
         raw_msg_str = str(message)
         match = re.search(r"#user_(\d+)", raw_msg_str)
         
         if match and text:
             target_guest_chat = match.group(1)
-            logging.info(f"Обнаружен ответ админа для пользователя {target_guest_chat}: {text}")
-            
             guest_answer = (
                 f"💬 Ответ от администрации базы отдыха «Русалочка»:\n\n"
                 f"{text}\n\n"
                 f"---------------------------------\n"
                 f"Если у вас есть еще вопросы, напишите их прямо сюда!"
             )
-            # Отправляем ответ гостю в его личный диалог с ботом
             success = await max_bot.send_message(chat_id=target_guest_chat, text=guest_answer)
             if success:
-                await reply(f"✅ Ответ успешно доставлен гостю!")
+                await reply("✅ Ответ успешно доставлен гостю!")
             else:
                 await reply(f"⚠️ Не удалось доставить ответ гостю (ID: {target_guest_chat}).")
             return web.json_response({"status": "ok"})
 
-    # 2. РЕЖИМ ОЖИДАНИЯ ВОПРОСА ОТ ГОСТЯ
+    # -------------------------------------------------------------
+    # 2. РЕЖИМ ОЖИДАНИЯ ВВОДА ВОПРОСА ОТ ГОСТЯ
+    # -------------------------------------------------------------
     if USER_STATES.get(user_id) == "waiting_feedback":
         if payload == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
             USER_STATES.pop(user_id, None)
             await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
 
-        # Сбрасываем статус ожидания
         USER_STATES.pop(user_id, None)
-
-        # Подтверждаем гостю
         await reply(
             "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\n"
             "Мы ответим вам прямо в этот диалог в ближайшее время.",
             get_main_menu_buttons()
         )
 
-        # Отправляем тикет администраторам в группу
         if str(ADMIN_CHAT_ID) != "0":
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ\n"
@@ -484,23 +484,12 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. ОСНОВНЫЕ КНОПКИ И МЕНЮ
-    if payload == "menu_feedback" or text == "💬 Задать вопрос администратору":
-        USER_STATES[user_id] = "waiting_feedback"
-        prompt = (
-            "💬 Задать вопрос администратору базы отдыха\n\n"
-            "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
-        )
-        await reply(prompt, get_cancel_buttons())
-        return web.json_response({"status": "ok"})
+    # -------------------------------------------------------------
+    # 3. ОБРАБОТКА НАЖАТИЙ НА ИНЛАЙН-КНОПКИ (PAYLOAD В ПРИОРИТЕТЕ)
+    # -------------------------------------------------------------
+    action = payload or text
 
-    is_start = (
-        text.startswith("/start")
-        or payload == "menu_root"
-        or update_type in ["bot_started", "chat_started"]
-    )
-
-    if is_start:
+    if action in ["menu_root", "/start", "start"]:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
             "Отдых на первой береговой линии Черного моря (Анапа, станица Благовещенская).\n"
@@ -512,20 +501,22 @@ async def handle_webhook(request: web.Request):
         await reply(welcome_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
 
-    elif text in ["🏡 Наши номера", "🏡 Список номеров"] or payload == "menu_rooms":
+    elif action in ["menu_rooms", "🏡 Наши номера", "🏡 Список номеров"]:
         rooms_text = "🏡 Номерной фонд базы отдыха «Русалочка»:\n\nВыберите категорию или откройте визуальную витрину с фото:"
         await reply(rooms_text, get_rooms_list_buttons())
+        return web.json_response({"status": "ok"})
 
-    elif payload.startswith("view_room_"):
-        room_key = payload.replace("view_room_", "")
+    elif action.startswith("view_room_"):
+        room_key = action.replace("view_room_", "")
         room = ROOMS_CATALOG.get(room_key)
         if room:
             await reply(
                 msg_text=room["description"],
                 btns=get_single_room_buttons(room_key)
             )
+        return web.json_response({"status": "ok"})
 
-    elif text == "📝 Забронировать" or payload == "menu_book":
+    elif action in ["menu_book", "📝 Забронировать"]:
         book_info = (
             "📝 Онлайн-бронирование номеров\n\n"
             "В нашем официальном модуле вы можете в реальном времени выбрать удобные даты, "
@@ -541,8 +532,9 @@ async def handle_webhook(request: web.Request):
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(book_info, buttons)
+        return web.json_response({"status": "ok"})
 
-    elif text in ["🎡 Услуги и сервис", "🎡 Инфраструктура и услуги"] or payload == "menu_infra":
+    elif action in ["menu_infra", "🎡 Услуги и сервис", "🎡 Инфраструктура и услуги"]:
         infra_text = (
             "🎡 ИНФРАСТРУКТУРА И УСЛУГИ\n\n"
             "✅ ВКЛЮЧЕНО В СТОИМОСТЬ:\n"
@@ -556,8 +548,9 @@ async def handle_webhook(request: web.Request):
             "• ⚡ Зарядная станция GB/T 7 кВт для электромобилей (22 ₽ / кВт·ч)"
         )
         await reply(infra_text, get_main_menu_buttons())
+        return web.json_response({"status": "ok"})
 
-    elif text == "🌴 О базе" or payload == "menu_about":
+    elif action in ["menu_about", "🌴 О базе"]:
         about_text = (
             "🌴 База отдыха «Русалочка»\n\n"
             "• Чистейший широкий песчаный пляж Черного моря\n"
@@ -571,15 +564,17 @@ async def handle_webhook(request: web.Request):
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(about_text, buttons)
+        return web.json_response({"status": "ok"})
 
-    elif text == "⭐ Отзывы" or payload == "menu_reviews":
+    elif action in ["menu_reviews", "⭐ Отзывы"]:
         buttons = [
             [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
+        return web.json_response({"status": "ok"})
 
-    elif text == "📞 Контакты и локация" or payload == "menu_contacts":
+    elif action in ["menu_contacts", "📞 Контакты и локация"]:
         contacts_text = (
             "📞 Контакты базы отдыха «Русалочка»:\n\n"
             "📍 Адрес: Краснодарский край, г. Анапа, ст. Благовещенская, б/о «Русалочка»\n"
@@ -594,27 +589,33 @@ async def handle_webhook(request: web.Request):
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(contacts_text, buttons)
+        return web.json_response({"status": "ok"})
 
-    elif text == "❓ Вопросы и ответы (FAQ)" or payload == "menu_faq":
+    elif action in ["menu_faq", "❓ Вопросы и ответы (FAQ)"]:
         await reply("Часто задаваемые вопросы:", get_faq_buttons())
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_checkin":
+    elif action == "faq_checkin":
         ans = "Во сколько заселение?\n\n— с 13:00, но если Вы приедете раньше и ваш номер будет уже свободен, мы заселим Вас раньше."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_checkout":
+    elif action == "faq_checkout":
         ans = "Во сколько выселение?\n\n— освободить номер нужно до 11:00, ключи и браслеты сдаются в администрацию."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_prepayment":
+    elif action == "faq_prepayment":
         ans = "При бронировании нужно вносить предоплату?\n\n— бронирование выбранной категории номера производится после перечисления предоплаты (30% от полной стоимости проживания)."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_refund":
+    elif action == "faq_refund":
         ans = "Предоплата возвратная?\n\n— бесплатная отмена бронирования возможна за 14 дней до заезда, после — взимается 100% от суммы предоплаты."
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_pets":
+    elif action == "faq_pets":
         ans = (
             "Возможно размещение с животными?\n\n"
             "— Разрешено исключительно с декоративными собаками весом до 6 кг в категории «Номер с кухней эко».\n"
@@ -626,14 +627,27 @@ async def handle_webhook(request: web.Request):
             [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
         ]
         await reply(ans, buttons)
+        return web.json_response({"status": "ok"})
 
-    elif payload == "faq_pdf":
+    elif action == "faq_pdf":
         await reply(
             "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
-            [[{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]]
+            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
         )
+        return web.json_response({"status": "ok"})
 
-    # Если гость написал произвольный текст вне режима вопроса
+    elif action in ["menu_feedback", "💬 Задать вопрос администратору"]:
+        USER_STATES[user_id] = "waiting_feedback"
+        prompt = (
+            "💬 Задать вопрос администратору базы отдыха\n\n"
+            "Напишите ваш вопрос следующим сообщением. Мы получим его и ответим вам прямо в этот диалог!"
+        )
+        await reply(prompt, get_cancel_buttons())
+        return web.json_response({"status": "ok"})
+
+    # -------------------------------------------------------------
+    # 4. ОБЫЧНЫЙ ТЕКСТ ГОСТЯ (НЕ КНОПКА)
+    # -------------------------------------------------------------
     elif text:
         prompt = (
             "Я получил ваше сообщение! 🌊\n\n"
@@ -644,6 +658,7 @@ async def handle_webhook(request: web.Request):
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(prompt, buttons)
+        return web.json_response({"status": "ok"})
 
     return web.json_response({"status": "ok"})
 
