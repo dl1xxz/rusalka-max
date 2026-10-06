@@ -23,11 +23,8 @@ WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=11-06-2027&dto=20-06-2027&adults=2&lang=ru"
 REVIEWS_YANDEX_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
 REVIEWS_2GIS_URL = "https://2gis.ru/anapa/firm/70000001033010188"
-RULES_PDF_URL = "https://rusalo4ka.com/pravila.pdf"
-
-GEO_LATITUDE = "45.053805"
-GEO_LONGITUDE = "37.086375"
-YANDEX_NAVI_URL = f"https://yandex.ru/navi/?whatshere%5Bpoint%5D={GEO_LONGITUDE}%2C{GEO_LATITUDE}&whatshere%5Bzoom%5D=17"
+YANDEX_ROUTE_URL = "https://yandex.ru/maps/org/rusalochka/241387417775?si=5zprzpwhdg2vqk8wegq6b3krmr"
+RULES_PDF_URL = f"{WEBAPP_URL}rules.pdf"
 
 USER_STATES: Dict[str, str] = {}
 
@@ -219,7 +216,6 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 def get_room_photos(folder_name: str) -> List[str]:
-    """Сканирует папку images/<folder_name> и возвращает файлы 1.webp, 2.webp и т.д."""
     folder_path = os.path.join("images", folder_name)
     if not os.path.isdir(folder_path):
         return []
@@ -597,11 +593,10 @@ async def handle_webhook(request: web.Request):
             "📍 Адрес: Краснодарский край, г. Анапа, ст. Благовещенская, ул. Прибрежная, д. 13, б/о «Русалочка»\n"
             "📞 Отдел бронирования: +7 (918) 47-74-366\n"
             "✉️ E-mail: anaparusalochka@rambler.ru\n"
-            "🌐 Сайты: https://rusalo4ka.com/ | https://русалочка.рф\n\n"
-            f"📍 Координаты навигатора: {GEO_LATITUDE}, {GEO_LONGITUDE}"
+            "🌐 Сайты: https://rusalo4ka.com/ | https://русалочка.рф"
         )
         buttons = [
-            [{"text": "🧭 Маршрут в Яндекс Навигаторе", "url": YANDEX_NAVI_URL}],
+            [{"text": "🧭 Маршрут в Яндекс Картах", "url": YANDEX_ROUTE_URL}],
             [{"text": "📄 Посмотреть правила (PDF)", "url": RULES_PDF_URL}],
             [{"text": "💬 Задать вопрос в чате", "payload": "menu_feedback"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
@@ -643,7 +638,7 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "📄 Скачать полные правила (PDF)", "url": RULES_PDF_URL}],
-            [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
+            [{"text": "⬅️️ Назад в FAQ", "payload": "menu_faq"}]
         ]
         await reply(ans, buttons)
         return web.json_response({"status": "ok"})
@@ -880,6 +875,12 @@ async def handle_get(request: web.Request):
     </html>"""
     return web.Response(text=full_html, content_type="text/html", status=200)
 
+async def handle_rules_pdf(request: web.Request):
+    pdf_path = "rules.pdf"
+    if os.path.exists(pdf_path):
+        return web.FileResponse(pdf_path)
+    return web.Response(text="Файл с правилами не найден на сервере.", status=404)
+
 async def on_startup(app_instance: web.Application):
     os.makedirs("images", exist_ok=True)
     logging.info("Проверка токена в MAX API...")
@@ -892,6 +893,9 @@ app.on_startup.append(on_startup)
 
 os.makedirs("images", exist_ok=True)
 app.router.add_static("/images", path="images", name="images")
+
+# Прямая раздача PDF-файла с правилами
+app.router.add_get("/rules.pdf", handle_rules_pdf)
 
 app.router.add_get("/", handle_get)
 app.router.add_post("/", handle_webhook)
