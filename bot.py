@@ -20,14 +20,18 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "-79780607715530")
 WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
 WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 
-BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=15-06-2027&dto=20-06-2027&adults=2&lang=ru"
-REVIEWS_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
+BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=11-06-2027&dto=20-06-2027&adults=2&lang=ru"
+REVIEWS_YANDEX_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
+REVIEWS_2GIS_URL = "https://2gis.ru/anapa/firm/70000001033010188"
+RULES_PDF_URL = "https://rusalo4ka.com/pravila.pdf"
 
-GEO_LATITUDE = 45.053805
-GEO_LONGITUDE = 37.086375
+GEO_LATITUDE = "45.053805"
+GEO_LONGITUDE = "37.086375"
+YANDEX_NAVI_URL = f"https://yandex.ru/navi/?whatshere%5Bpoint%5D={GEO_LONGITUDE}%2C{GEO_LATITUDE}&whatshere%5Bzoom%5D=17"
 
 USER_STATES: Dict[str, str] = {}
 
+# Номерной фонд базы отдыха «Русалочка»
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     "kitchen_2p": {
         "title": "Номер с кухней (апарт.) 2-х местный + доп.место",
@@ -215,6 +219,7 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
 }
 
 def get_room_photos(folder_name: str) -> List[str]:
+    """Сканирует папку images/<folder_name> и возвращает файлы 1.webp, 2.webp и т.д."""
     folder_path = os.path.join("images", folder_name)
     if not os.path.isdir(folder_path):
         return []
@@ -270,7 +275,6 @@ class MaxBotClient:
             logging.error(f"Не удалось отправить запрос подписки: {e}")
 
     async def answer_callback(self, callback_id: str) -> None:
-        """Подтверждение обработки нажатия кнопки"""
         if not callback_id:
             return
         url = f"{self.base_url}/answers"
@@ -278,7 +282,7 @@ class MaxBotClient:
         try:
             async with ClientSession(connector=self._get_connector()) as session:
                 async with session.post(url, headers=self.headers, params=params, json={}) as resp:
-                    logging.info(f"Ответ на callback {callback_id}: {resp.status}")
+                    pass
         except Exception as e:
             logging.error(f"Ошибка answer_callback: {e}")
 
@@ -319,29 +323,27 @@ class MaxBotClient:
 
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                # 1. Попытка отправить через chat_id
                 if chat_id:
                     target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
                     async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload) as resp:
                         if resp.status in (200, 201):
-                            logging.info(f"✅ Успешно отправлено через ?chat_id={target_cid}")
+                            logging.info(f"✅ Отправлено в chat_id={target_cid}")
                             return True
                         resp_text = await resp.text()
-                        logging.warning(f"Ошибка ?chat_id={target_cid} ({resp.status}): {resp_text}")
+                        logging.warning(f"Ошибка chat_id ({resp.status}): {resp_text}")
 
-                # 2. Если chat_id нет или вернулась ошибка — пробуем через user_id
                 if user_id:
                     target_uid = int(user_id) if str(user_id).isdigit() else user_id
                     async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload) as resp:
                         if resp.status in (200, 201):
-                            logging.info(f"✅ Успешно отправлено через ?user_id={target_uid}")
+                            logging.info(f"✅ Отправлено в user_id={target_uid}")
                             return True
                         resp_text = await resp.text()
-                        logging.warning(f"Ошибка ?user_id={target_uid} ({resp.status}): {resp_text}")
+                        logging.warning(f"Ошибка user_id ({resp.status}): {resp_text}")
 
                 return False
         except Exception as e:
-            logging.error(f"Исключение при отправке сообщения: {e}")
+            logging.error(f"Исключение send_message: {e}")
             return False
 
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
@@ -385,7 +387,7 @@ def get_faq_buttons() -> List[List[Dict[str, str]]]:
         [{"text": "При бронировании нужно вносить предоплату?", "payload": "faq_prepayment"}],
         [{"text": "Предоплата возвратная?", "payload": "faq_refund"}],
         [{"text": "Возможно размещение с животными?", "payload": "faq_pets"}],
-        [{"text": "📄 Посмотреть правила (PDF)", "payload": "faq_pdf"}],
+        [{"text": "📄 Посмотреть правила (PDF)", "url": RULES_PDF_URL}],
         [{"text": "💬 Задать свой вопрос", "payload": "menu_feedback"}],
         [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
     ]
@@ -410,19 +412,15 @@ async def handle_webhook(request: web.Request):
     msg_sender = message.get("sender", {})
     root_user = data.get("user", {})
 
-    # Извлечение отправителя
     sender = callback_user or msg_sender or root_user or {}
 
-    # Игнорируем эхо от самого бота
     if sender.get("is_bot") is True:
         return web.json_response({"status": "ok"})
 
-    # Мгновенно подтверждаем получение callback
     callback_id = callback.get("callback_id") or data.get("callback_id")
     if callback_id:
         await max_bot.answer_callback(callback_id)
 
-    # Надежное извлечение chat_id
     chat_id = (
         callback.get("chat_id")
         or callback.get("message", {}).get("recipient", {}).get("chat_id")
@@ -430,8 +428,6 @@ async def handle_webhook(request: web.Request):
         or message.get("chat_id")
         or data.get("chat_id")
     )
-
-    # Надежное извлечение user_id
     user_id = (
         callback.get("user_id")
         or sender.get("user_id")
@@ -440,16 +436,12 @@ async def handle_webhook(request: web.Request):
     user_id_str = str(user_id) if user_id else ""
     sender_name = sender.get("name") or sender.get("first_name") or "Гость"
 
-    # Извлечение действия (кнопка имеет наивысший приоритет)
     payload = callback.get("payload") or data.get("payload") or ""
     text = (body.get("text") or message.get("text") or "").strip()
 
     action = payload if payload else text
 
-    logging.info(f"Распознано действие: action='{action}', chat_id='{chat_id}', user_id='{user_id}'")
-
     if not chat_id and not user_id:
-        logging.warning("Не удалось определить ни chat_id, ни user_id!")
         return web.json_response({"status": "ok"})
 
     chat_id_str = str(chat_id) if chat_id else ""
@@ -496,7 +488,6 @@ async def handle_webhook(request: web.Request):
         )
 
         if str(ADMIN_CHAT_ID) != "0":
-            # Используем chat_id диалога или личный user_id гостя
             guest_ref = chat_id_str if chat_id_str else user_id_str
             admin_ticket = (
                 f"📩 НОВЫЙ ВОПРОС ОТ ГОСТЯ\n"
@@ -508,13 +499,13 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. МАРШРУТИЗАЦИЯ КНОПОК И КОМАНД
+    # 3. МАРШРУТИЗАЦИЯ КНОПОК И МЕНЮ
     if action in ["menu_root", "/start", "start"] or update_type in ["bot_started", "chat_started"]:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
-            "Отдых на первой береговой линии Черного моря (Анапа, станица Благовещенская).\n"
-            "Ухоженная территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
-            "📅 Период работы: с 15 июня по 15 сентября\n"
+            "Семейный отдых на песчаном побережье Черного моря (Анапа, ст. Благовещенская).\n"
+            "Зеленая территория, уютные эко-домики и номера с оборудованной кухней!\n\n"
+            "📅 Период работы: с 11 июня по 15 сентября\n"
             "🕒 Заезд — с 13:00 | Выезд — до 11:00\n\n"
             "Нажмите «📱 Витрина с фото номеров», чтобы открыть интерактивный каталог с фотографиями ⬇️"
         )
@@ -542,7 +533,7 @@ async def handle_webhook(request: web.Request):
             "В нашем официальном модуле вы можете в реальном времени выбрать удобные даты, "
             "проверить наличие свободных мест и мгновенно забронировать проживание!\n\n"
             "📌 Условия бронирования:\n"
-            "• Период работы: с 15 июня по 15 сентября\n"
+            "• Период работы: с 11 июня по 15 сентября\n"
             "• Заезд: с 13:00 | Выезд: до 11:00\n"
             "• Предоплата: 30% от общей стоимости\n"
             "• Бесплатная отмена: возможна за 14 дней до заезда"
@@ -561,11 +552,13 @@ async def handle_webhook(request: web.Request):
             "• 👶 Детская игровая площадка\n"
             "• ⚽ Настольный теннис, футбол, шахматы, спортинвентарь\n"
             "• 🥩 Оборудованная мангальная зона (решетки, шампуры, печь, казан 12 л)\n"
-            "• 🌸 Зеленая ухоженная территория (350 кустов роз, 1100 кустов лаванды)\n\n"
-            "💲 ДОПОЛНИТЕЛЬНО:\n"
+            "• 🌸 Зеленая ухоженная территория (350 кустов роз и 2000 кустов лаванды)\n\n"
+            "💲 ДОПОЛНИТЕЛЬНЫЕ УСЛУГИ:\n"
             "• 🎨 Творческие мастер-классы и шоу\n"
             "• 🧺 Прачечная и гладильная комната\n"
-            "• ⚡ Зарядная станция GB/T 7 кВт для электромобилей (22 ₽ / кВт·ч)"
+            "• ⚡ Зарядная станция GB/T 7 кВт для электромобилей:\n"
+            "  — Цена: 25 ₽ / 1 кВт·ч\n"
+            "  — Время работы: с 9:00 до 19:00, для гостей базы отдыха — круглосуточно"
         )
         await reply(infra_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
@@ -576,35 +569,40 @@ async def handle_webhook(request: web.Request):
             "• Чистейший широкий песчаный пляж Черного моря\n"
             "• Охраняемая закрытая зеленая территория\n"
             "• Комплексное 3-разовое питание включено во все категории номеров\n"
-            "• Период сезона: с 15 июня по 15 сентября\n"
-            "• Официальный сайт: https://rusalo4ka.com/"
+            "• Период сезона: с 11 июня по 15 сентября\n\n"
+            "🌐 Официальные сайты:\n"
+            "• https://rusalo4ka.com/\n"
+            "• https://русалочка.рф"
         )
         buttons = [
-            [{"text": "🌐 Перейти на сайт rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+            [{"text": "🌐 rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
+            [{"text": "🌐 русалочка.рф", "url": "https://русалочка.рф"}],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
         await reply(about_text, buttons)
         return web.json_response({"status": "ok"})
 
     elif action in ["menu_reviews", "⭐ Отзывы"]:
         buttons = [
-            [{"text": "⭐ Открыть отзывы на Яндекс.Картах", "url": REVIEWS_URL}],
-            [{"text": "⬅️️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⭐ Отзывы на Яндекс.Картах", "url": REVIEWS_YANDEX_URL}],
+            [{"text": "🗺️ Отзывы в 2ГИС", "url": REVIEWS_2GIS_URL}],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
-        await reply("⭐ Отзывы наших гостей на Яндекс.Картах:", buttons)
+        await reply("⭐ Отзывы наших гостей на онлайн-картах:", buttons)
         return web.json_response({"status": "ok"})
 
     elif action in ["menu_contacts", "📞 Контакты и локация"]:
         contacts_text = (
             "📞 Контакты базы отдыха «Русалочка»:\n\n"
-            "📍 Адрес: Краснодарский край, г. Анапа, ст. Благовещенская, б/о «Русалочка»\n"
+            "📍 Адрес: Краснодарский край, г. Анапа, ст. Благовещенская, ул. Прибрежная, д. 13, б/о «Русалочка»\n"
             "📞 Отдел бронирования: +7 (918) 47-74-366\n"
             "✉️ E-mail: anaparusalochka@rambler.ru\n"
-            "🌐 Сайт: https://rusalo4ka.com/\n\n"
+            "🌐 Сайты: https://rusalo4ka.com/ | https://русалочка.рф\n\n"
             f"📍 Координаты навигатора: {GEO_LATITUDE}, {GEO_LONGITUDE}"
         )
         buttons = [
-            [{"text": "📄 Посмотреть правила (PDF)", "payload": "faq_pdf"}],
+            [{"text": "🧭 Маршрут в Яндекс Навигаторе", "url": YANDEX_NAVI_URL}],
+            [{"text": "📄 Посмотреть правила (PDF)", "url": RULES_PDF_URL}],
             [{"text": "💬 Задать вопрос в чате", "payload": "menu_feedback"}],
             [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
         ]
@@ -640,20 +638,14 @@ async def handle_webhook(request: web.Request):
             "Возможно размещение с животными?\n\n"
             "— Разрешено исключительно с декоративными собаками весом до 6 кг в категории «Номер с кухней эко».\n"
             "— Тариф: 800 руб./сутки.\n"
-            "— Выгул собак по территории базы запрещен."
+            "— Выгул собак по территории базы запрещен.\n\n"
+            "📄 Ознакомьтесь с подробными правилами проживания по кнопке ниже:"
         )
         buttons = [
-            [{"text": "📄 Посмотреть полные правила", "payload": "faq_pdf"}],
+            [{"text": "📄 Скачать полные правила (PDF)", "url": RULES_PDF_URL}],
             [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
         ]
         await reply(ans, buttons)
-        return web.json_response({"status": "ok"})
-
-    elif action == "faq_pdf":
-        await reply(
-            "📄 Официальные правила проживания на базе отдыха «Русалочка» доступны на сайте:\nhttps://rusalo4ka.com/",
-            [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]]
-        )
         return web.json_response({"status": "ok"})
 
     elif action in ["menu_feedback", "💬 Задать вопрос администратору"]:
@@ -665,7 +657,6 @@ async def handle_webhook(request: web.Request):
         await reply(prompt, get_cancel_buttons())
         return web.json_response({"status": "ok"})
 
-    # 4. ОБЫЧНЫЙ ТЕКСТ ГОСТЯ (НЕ НАЖАТИЕ НА КНОПКУ)
     elif text:
         prompt = (
             "Я получил ваше сообщение! 🌊\n\n"
@@ -881,8 +872,8 @@ async def handle_get(request: web.Request):
         <div class="container">
             {cards_html}
             <div class="footer-info">
-                База отдыха «Русалочка» • Период работы: с 15 июня по 15 сентября<br>
-                Анапа, ст. Благовещенская • +7 (918) 47-74-366
+                База отдыха «Русалочка» • Период работы: с 11 июня по 15 сентября<br>
+                Анапа, ст. Благовещенская, ул. Прибрежная, д. 13 • +7 (918) 47-74-366
             </div>
         </div>
     </body>
