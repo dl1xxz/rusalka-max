@@ -24,7 +24,7 @@ WEBHOOK_URL = os.getenv(
 )
 WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 
-# Ссылка бронирования заменена на официальный сайт
+# Ссылка бронирования ведет на официальный сайт
 BOOKING_URL = "https://rusalo4ka.com/"
 
 REVIEWS_YANDEX_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
@@ -611,7 +611,20 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. МЕНЮ И НАВИГАЦИЯ
+    # 3. ПРОСМОТР СТАТИСТИКИ КЛИКОВ ЧЕРЕЗ ЧАТ (/stats)
+    if action in ["/stats", "stats", "статистика"]:
+        stats = get_booking_stats_max()
+        total = stats.get("total_clicks", 0)
+        users_cnt = len(stats.get("users", {}))
+        stats_msg = (
+            f"📊 Статистика кликов «Забронировать» (MAX):\n\n"
+            f"• Всего переходов: {total}\n"
+            f"• Уникальных пользователей: {users_cnt}"
+        )
+        await reply(stats_msg)
+        return web.json_response({"status": "ok"})
+
+    # 4. МЕНЮ И НАВИГАЦИЯ
     if action in ["menu_root", "/start", "start"] or update_type in [
         "bot_started",
         "chat_started",
