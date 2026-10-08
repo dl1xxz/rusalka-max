@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import logging
 from typing import Dict, Any, List, Optional
 
@@ -17,17 +18,59 @@ BOT_TOKEN = os.getenv(
     "f9LHodD0cOK6F9nc6kr6ky0CWdnWdY9doCzwFElXkNvqdkMKOlNNs7YZi8RcPk3linYFzlw3qGBXIWOmocDY"
 )
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID", "-79780607715530")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL", "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook")
+WEBHOOK_URL = os.getenv(
+    "WEBHOOK_URL",
+    "https://bot-1791222128-3841-dl1xxz.bothost.tech/webhook"
+)
 WEBAPP_URL = "https://bot-1791222128-3841-dl1xxz.bothost.tech/"
 
-BOOKING_URL = "https://reservationsteps.ru/rooms/index/8dc26407-5b2f-46e5-8597-ebfc46cf8111?dfrom=11-06-2027&dto=20-06-2027&adults=2&lang=ru"
+# Ссылка бронирования заменена на официальный сайт
+BOOKING_URL = "https://rusalo4ka.com/"
+
 REVIEWS_YANDEX_URL = "https://yandex.ru/maps/org/rusalochka/241387417775/reviews/?ll=37.156738%2C45.028213&z=11.94"
 REVIEWS_2GIS_URL = "https://2gis.ru/anapa/firm/70000001033010188"
 YANDEX_ROUTE_URL = "https://yandex.ru/maps/org/rusalochka/241387417775?si=5zprzpwhdg2vqk8wegq6b3krmr"
 RULES_PDF_URL = f"{WEBAPP_URL}rules.pdf"
 OFERTA_PDF_URL = f"{WEBAPP_URL}oferta.pdf"
 
+STATS_FILE_MAX = "booking_stats_max.json"
 USER_STATES: Dict[str, str] = {}
+
+
+# =====================================================================
+# 2. СЧЕТЧИК ПЕРЕХОДОВ К БРОНИРОВАНИЮ
+# =====================================================================
+def increment_booking_clicks_max(user_id: str) -> int:
+    data = {"total_clicks": 0, "users": {}}
+    if os.path.exists(STATS_FILE_MAX):
+        try:
+            with open(STATS_FILE_MAX, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception:
+            pass
+
+    data["total_clicks"] = data.get("total_clicks", 0) + 1
+    u_key = str(user_id) if user_id else "unknown"
+    data["users"][u_key] = data.get("users", {}).get(u_key, 0) + 1
+
+    try:
+        with open(STATS_FILE_MAX, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logging.error(f"Ошибка сохранения статистики МАКС: {e}")
+
+    return data["total_clicks"]
+
+
+def get_booking_stats_max() -> dict:
+    if os.path.exists(STATS_FILE_MAX):
+        try:
+            with open(STATS_FILE_MAX, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"total_clicks": 0, "users": {}}
+
 
 # Номерной фонд базы отдыха «Русалочка» (Цены: июнь 2026)
 ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
@@ -206,13 +249,14 @@ ROOMS_CATALOG: Dict[str, Dict[str, Any]] = {
     },
 }
 
+
 def get_room_photos(folder_name: str) -> List[str]:
     folder_path = os.path.join("images", folder_name)
     if not os.path.isdir(folder_path):
         return []
 
     photos = []
-    valid_extensions = ('.webp', '.jpg', '.jpeg', '.png')
+    valid_extensions = (".webp", ".jpg", ".jpeg", ".png")
     try:
         files = sorted(os.listdir(folder_path))
         for f in files:
@@ -222,8 +266,9 @@ def get_room_photos(folder_name: str) -> List[str]:
         logging.error(f"Ошибка чтения папки {folder_path}: {e}")
     return photos
 
+
 # =====================================================================
-# 2. КЛИЕНТ API MAX
+# 3. КЛИЕНТ API MAX
 # =====================================================================
 class MaxBotClient:
     def __init__(self, token: str, base_url: str):
@@ -234,7 +279,7 @@ class MaxBotClient:
     def headers(self) -> Dict[str, str]:
         return {
             "Authorization": self.token,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
     def _get_connector(self) -> TCPConnector:
@@ -246,7 +291,9 @@ class MaxBotClient:
             async with ClientSession(connector=self._get_connector()) as session:
                 async with session.get(url, headers=self.headers) as resp:
                     data = await resp.text()
-                    logging.info(f"Проверка /me: статус={resp.status}, ответ={data}")
+                    logging.info(
+                        f"Проверка /me: статус={resp.status}, ответ={data}"
+                    )
         except Exception as e:
             logging.error(f"Ошибка вызова /me: {e}")
 
@@ -255,9 +302,13 @@ class MaxBotClient:
         payload = {"url": webhook_target}
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, json=payload) as resp:
+                async with session.post(
+                    url, headers=self.headers, json=payload
+                ) as resp:
                     resp_text = await resp.text()
-                    logging.info(f"Регистрация Webhook (/subscriptions): статус={resp.status}, ответ={resp_text}")
+                    logging.info(
+                        f"Регистрация Webhook (/subscriptions): статус={resp.status}, ответ={resp_text}"
+                    )
         except Exception as e:
             logging.error(f"Не удалось отправить запрос подписки: {e}")
 
@@ -268,7 +319,9 @@ class MaxBotClient:
         params = {"callback_id": callback_id}
         try:
             async with ClientSession(connector=self._get_connector()) as session:
-                async with session.post(url, headers=self.headers, params=params, json={}) as resp:
+                async with session.post(
+                    url, headers=self.headers, params=params, json={}
+                ) as resp:
                     pass
         except Exception as e:
             logging.error(f"Ошибка answer_callback: {e}")
@@ -278,7 +331,7 @@ class MaxBotClient:
         chat_id: Optional[Any] = None,
         user_id: Optional[Any] = None,
         text: str = "",
-        buttons: List[List[Dict[str, str]]] = None
+        buttons: List[List[Dict[str, str]]] = None,
     ) -> bool:
         url = f"{self.base_url}/messages"
 
@@ -290,19 +343,25 @@ class MaxBotClient:
                 for b in row:
                     btn_text = b.get("text", "")
                     if "url" in b:
-                        new_row.append({"type": "link", "text": btn_text, "url": b["url"]})
+                        new_row.append(
+                            {"type": "link", "text": btn_text, "url": b["url"]}
+                        )
                     else:
-                        new_row.append({
-                            "type": "callback",
-                            "text": btn_text,
-                            "payload": b.get("payload", btn_text)
-                        })
+                        new_row.append(
+                            {
+                                "type": "callback",
+                                "text": btn_text,
+                                "payload": b.get("payload", btn_text),
+                            }
+                        )
                 max_buttons.append(new_row)
 
-            attachments.append({
-                "type": "inline_keyboard",
-                "payload": {"buttons": max_buttons}
-            })
+            attachments.append(
+                {
+                    "type": "inline_keyboard",
+                    "payload": {"buttons": max_buttons},
+                }
+            )
 
         payload = {"text": text}
         if attachments:
@@ -311,75 +370,139 @@ class MaxBotClient:
         try:
             async with ClientSession(connector=self._get_connector()) as session:
                 if chat_id:
-                    target_cid = int(chat_id) if str(chat_id).lstrip("-").isdigit() else chat_id
-                    async with session.post(url, headers=self.headers, params={"chat_id": target_cid}, json=payload) as resp:
+                    target_cid = (
+                        int(chat_id)
+                        if str(chat_id).lstrip("-").isdigit()
+                        else chat_id
+                    )
+                    async with session.post(
+                        url,
+                        headers=self.headers,
+                        params={"chat_id": target_cid},
+                        json=payload,
+                    ) as resp:
                         if resp.status in (200, 201):
                             return True
                         resp_text = await resp.text()
-                        logging.warning(f"Ошибка chat_id ({resp.status}): {resp_text}")
+                        logging.warning(
+                            f"Ошибка chat_id ({resp.status}): {resp_text}"
+                        )
 
                 if user_id:
-                    target_uid = int(user_id) if str(user_id).isdigit() else user_id
-                    async with session.post(url, headers=self.headers, params={"user_id": target_uid}, json=payload) as resp:
+                    target_uid = (
+                        int(user_id) if str(user_id).isdigit() else user_id
+                    )
+                    async with session.post(
+                        url,
+                        headers=self.headers,
+                        params={"user_id": target_uid},
+                        json=payload,
+                    ) as resp:
                         if resp.status in (200, 201):
                             return True
                         resp_text = await resp.text()
-                        logging.warning(f"Ошибка user_id ({resp.status}): {resp_text}")
+                        logging.warning(
+                            f"Ошибка user_id ({resp.status}): {resp_text}"
+                        )
 
                 return False
         except Exception as e:
             logging.error(f"Исключение send_message: {e}")
             return False
 
+
 max_bot = MaxBotClient(BOT_TOKEN, MAX_API_BASE_URL)
 
+
 # =====================================================================
-# 3. КНОПКИ
+# 4. КНОПКИ МЕНЮ МАКС
 # =====================================================================
 def get_main_menu_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "📱 Витрина с фото номеров (Web)", "url": WEBAPP_URL}],
-        [{"text": "🏡 Список номеров", "payload": "menu_rooms"}, {"text": "📝 Забронировать", "payload": "menu_book"}],
-        [{"text": "🌴 О базе", "payload": "menu_about"}, {"text": "🎡 Услуги и сервис", "payload": "menu_infra"}],
-        [{"text": "⭐ Отзывы", "payload": "menu_reviews"}, {"text": "❓ Вопросы и ответы (FAQ)", "payload": "menu_faq"}],
+        [
+            {"text": "🏡 Список номеров", "payload": "menu_rooms"},
+            {"text": "📝 Забронировать", "payload": "menu_book"},
+        ],
+        [
+            {"text": "🌴 О базе", "payload": "menu_about"},
+            {"text": "🎡 Услуги и сервис", "payload": "menu_infra"},
+        ],
+        [
+            {"text": "⭐ Отзывы", "payload": "menu_reviews"},
+            {"text": "❓ Вопросы и ответы (FAQ)", "payload": "menu_faq"},
+        ],
         [{"text": "📞 Контакты и локация", "payload": "menu_contacts"}],
-        [{"text": "💬 Задать вопрос администратору", "payload": "menu_feedback"}]
+        [
+            {
+                "text": "💬 Задать вопрос администратору",
+                "payload": "menu_feedback",
+            }
+        ],
     ]
+
 
 def get_cancel_buttons() -> List[List[Dict[str, str]]]:
     return [[{"text": "❌ Отменить вопрос", "payload": "cancel_feedback"}]]
+
 
 def get_rooms_list_buttons() -> List[List[Dict[str, str]]]:
     buttons = [
         [{"text": "📱 Открыть фото-витрину всех номеров", "url": WEBAPP_URL}]
     ]
     for key, data in ROOMS_CATALOG.items():
-        buttons.append([{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}])
+        buttons.append(
+            [{"text": f"🏡 {data['title']}", "payload": f"view_room_{key}"}]
+        )
     buttons.append([{"text": "⬅️ В главное меню", "payload": "menu_root"}])
     return buttons
 
+
 def get_single_room_buttons(room_key: str) -> List[List[Dict[str, str]]]:
     return [
-        [{"text": "📱 Посмотреть все фото номера", "url": f"{WEBAPP_URL}#room-{room_key}"}],
-        [{"text": "🛎 Забронировать этот номер", "url": BOOKING_URL}],
-        [{"text": "⬅️ Назад к списку номеров", "payload": "menu_rooms"}]
+        [
+            {
+                "text": "📱 Посмотреть все фото номера",
+                "url": f"{WEBAPP_URL}#room-{room_key}",
+            }
+        ],
+        [{"text": "🛎 Забронировать этот номер", "payload": "click_book"}],
+        [{"text": "⬅️ Назад к списку номеров", "payload": "menu_rooms"}],
     ]
+
 
 def get_faq_buttons() -> List[List[Dict[str, str]]]:
     return [
         [{"text": "Во сколько заселение?", "payload": "faq_checkin"}],
-        [{"text": "Во сколько выселение из номера?", "payload": "faq_checkout"}],
-        [{"text": "При бронировании нужно вносить предоплату?", "payload": "faq_prepayment"}],
+        [
+            {
+                "text": "Во сколько выселение из номера?",
+                "payload": "faq_checkout",
+            }
+        ],
+        [{"text": "Можно ли без питания?", "payload": "faq_no_meals"}],
+        [
+            {
+                "text": "При бронировании нужно вносить предоплату?",
+                "payload": "faq_prepayment",
+            }
+        ],
         [{"text": "Предоплата возвратная?", "payload": "faq_refund"}],
-        [{"text": "Возможно размещение с животными?", "payload": "faq_pets"}],
+        [
+            {
+                "text": "Возможно размещение с животными?",
+                "payload": "faq_pets",
+            }
+        ],
         [{"text": "📄 Правила проживания (PDF)", "url": RULES_PDF_URL}],
         [{"text": "📑 Договор оферты (PDF)", "url": OFERTA_PDF_URL}],
         [{"text": "💬 Задать свой вопрос", "payload": "menu_feedback"}],
-        [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+        [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
     ]
 
+
 # =====================================================================
-# 4. ОБРАБОТЧИК ВЕБХУКА MAX
+# 5. ОБРАБОТЧИК ВЕБХУКА MAX
 # =====================================================================
 async def handle_webhook(request: web.Request):
     try:
@@ -431,13 +554,10 @@ async def handle_webhook(request: web.Request):
 
     async def reply(msg_text: str, btns: list = None):
         return await max_bot.send_message(
-            chat_id=chat_id,
-            user_id=user_id,
-            text=msg_text,
-            buttons=btns
+            chat_id=chat_id, user_id=user_id, text=msg_text, buttons=btns
         )
 
-    # 1. ОТВЕТ АДМИНИСТРАТОРА
+    # 1. ОТВЕТ АДМИНИСТРАТОРА ИЗ ГРУППЫ ПОДДЕРЖКИ (REPLY)
     if str(ADMIN_CHAT_ID) != "0" and chat_id_str == str(ADMIN_CHAT_ID):
         raw_msg_str = str(message)
         match = re.search(r"#user_(\d+)", raw_msg_str)
@@ -449,16 +569,25 @@ async def handle_webhook(request: web.Request):
                 f"---------------------------------\n"
                 f"Если у вас есть еще вопросы, напишите их прямо сюда!"
             )
-            success = await max_bot.send_message(chat_id=target_guest_chat, user_id=target_guest_chat, text=guest_answer)
+            success = await max_bot.send_message(
+                chat_id=target_guest_chat,
+                user_id=target_guest_chat,
+                text=guest_answer,
+            )
             if success:
                 await reply("✅ Ответ успешно доставлен гостю!")
             else:
-                await reply(f"⚠️ Не удалось доставить ответ гостю (ID: {target_guest_chat}).")
+                await reply(
+                    f"⚠️ Не удалось доставить ответ гостю (ID: {target_guest_chat})."
+                )
             return web.json_response({"status": "ok"})
 
-    # 2. ОЖИДАНИЕ ВВОДА ВОПРОСА
+    # 2. РЕЖИМ ВВОДА ВОПРОСА ГОСТЕМ
     if USER_STATES.get(user_id_str) == "waiting_feedback":
-        if action == "cancel_feedback" or text.lower() in ["отмена", "❌ отменить вопрос"]:
+        if action == "cancel_feedback" or text.lower() in [
+            "отмена",
+            "❌ отменить вопрос",
+        ]:
             USER_STATES.pop(user_id_str, None)
             await reply("Отправка вопроса отменена.", get_main_menu_buttons())
             return web.json_response({"status": "ok"})
@@ -467,7 +596,7 @@ async def handle_webhook(request: web.Request):
         await reply(
             "✅ Ваш вопрос передан администраторам базы отдыха «Русалочка»!\n\n"
             "Мы ответим вам прямо в этот диалог в ближайшее время.",
-            get_main_menu_buttons()
+            get_main_menu_buttons(),
         )
 
         if str(ADMIN_CHAT_ID) != "0":
@@ -482,8 +611,11 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. МЕНЮ
-    if action in ["menu_root", "/start", "start"] or update_type in ["bot_started", "chat_started"]:
+    # 3. МЕНЮ И НАВИГАЦИЯ
+    if action in ["menu_root", "/start", "start"] or update_type in [
+        "bot_started",
+        "chat_started",
+    ]:
         welcome_text = (
             "Добро пожаловать в базу отдыха «Русалочка»! 🌊\n\n"
             "Семейный отдых на песчаном побережье Черного моря (Анапа, ст. Благовещенская).\n"
@@ -506,14 +638,29 @@ async def handle_webhook(request: web.Request):
         if room:
             await reply(
                 msg_text=room["description"],
-                btns=get_single_room_buttons(room_key)
+                btns=get_single_room_buttons(room_key),
             )
         return web.json_response({"status": "ok"})
 
+    # Переход к бронированию из карточки номера (счётчик)
+    elif action == "click_book":
+        increment_booking_clicks_max(user_id_str)
+        buttons = [
+            [{"text": "🌐 Перейти на сайт базы", "url": BOOKING_URL}],
+            [{"text": "⬅️ Назад к номерам", "payload": "menu_rooms"}],
+        ]
+        await reply(
+            "Нажмите кнопку ниже для перехода на официальный сайт базы отдыха «Русалочка»:",
+            buttons,
+        )
+        return web.json_response({"status": "ok"})
+
+    # Бронирование из главного меню (счётчик)
     elif action in ["menu_book", "📝 Забронировать"]:
+        increment_booking_clicks_max(user_id_str)
         book_info = (
             "📝 Онлайн-бронирование номеров\n\n"
-            "В нашем официальном модуле вы можете в реальном времени выбрать удобные даты, "
+            "На нашем официальном сайте вы можете в реальном времени выбрать удобные даты, "
             "проверить наличие свободных мест и мгновенно забронировать проживание!\n\n"
             "📌 Условия бронирования:\n"
             "• Период работы: с 11 июня по 15 сентября\n"
@@ -522,8 +669,8 @@ async def handle_webhook(request: web.Request):
             "• Бесплатная отмена: за 14 дней до заезда"
         )
         buttons = [
-            [{"text": "💳 Перейти к бронированию и оплате", "url": BOOKING_URL}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "🌐 Перейти на сайт для бронирования", "url": BOOKING_URL}],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
         ]
         await reply(book_info, buttons)
         return web.json_response({"status": "ok"})
@@ -541,8 +688,8 @@ async def handle_webhook(request: web.Request):
             "• 🐶 Проживание с питомцем (до 5–7 кг): 800 ₽/сут (депозит 5 000 ₽)\n"
             "• 🧺 Прачечная и гладильная комната\n"
             "• ⚡ Зарядная станция GB/T 7 кВт для электромобилей:\n"
-            "  — Цена: 25 ₽ / 1 кВт·ч\n"
-            "  — Режим: с 9:00 до 19:00, для гостей базы отдыха — круглосуточно"
+            "   — Цена: 25 ₽ / 1 кВт·ч\n"
+            "   — Режим: с 9:00 до 19:00, для гостей базы отдыха — круглосуточно"
         )
         await reply(infra_text, get_main_menu_buttons())
         return web.json_response({"status": "ok"})
@@ -560,8 +707,13 @@ async def handle_webhook(request: web.Request):
         )
         buttons = [
             [{"text": "🌐 rusalo4ka.com", "url": "https://rusalo4ka.com/"}],
-            [{"text": "🌐 русалочка.рф", "url": "https://русалочка.рф"}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [
+                {
+                    "text": "🌐 русалочка.рф",
+                    "url": "https://xn--80aaahx7adkc.xn--p1ai/",
+                }
+            ],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
         ]
         await reply(about_text, buttons)
         return web.json_response({"status": "ok"})
@@ -570,7 +722,7 @@ async def handle_webhook(request: web.Request):
         buttons = [
             [{"text": "⭐ Отзывы на Яндекс.Картах", "url": REVIEWS_YANDEX_URL}],
             [{"text": "🗺️ Отзывы в 2ГИС", "url": REVIEWS_2GIS_URL}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
         ]
         await reply("⭐ Отзывы наших гостей на онлайн-картах:", buttons)
         return web.json_response({"status": "ok"})
@@ -588,7 +740,7 @@ async def handle_webhook(request: web.Request):
             [{"text": "📄 Правила проживания (PDF)", "url": RULES_PDF_URL}],
             [{"text": "📑 Договор оферты (PDF)", "url": OFERTA_PDF_URL}],
             [{"text": "💬 Задать вопрос в чате", "payload": "menu_feedback"}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
         ]
         await reply(contacts_text, buttons)
         return web.json_response({"status": "ok"})
@@ -604,6 +756,17 @@ async def handle_webhook(request: web.Request):
 
     elif action == "faq_checkout":
         ans = "Во сколько выселение?\n\n— освободить номер нужно до 11:00, ключи и браслеты сдаются в администрацию."
+        await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
+        return web.json_response({"status": "ok"})
+
+    # НОВЫЙ ПУНКТ FAQ: Можно ли без питания?
+    elif action == "faq_no_meals":
+        ans = (
+            "Можно ли без питания?\n\n"
+            "— Да, можно. При бронировании можно выбрать тариф «Без питания».\n\n"
+            "Если вы бронируете тариф «Без питания» и решите докупить питание на месте, "
+            "стоимость питания составит: 1 500 ₽ / сутки с человека."
+        )
         await reply(ans, [[{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]])
         return web.json_response({"status": "ok"})
 
@@ -624,12 +787,12 @@ async def handle_webhook(request: web.Request):
             "— Тариф: 800 руб./сутки.\n"
             "— Рекомендуется возвратный депозит: 5 000 руб.\n"
             "— Выгул собак по территории базы запрещен.\n\n"
-            "📄 Ознакомьтесь с официальными документами по кнопкам ниже:"
+            "📄 Ознакомьтесь с официальными документами по ссылкам ниже:"
         )
         buttons = [
             [{"text": "📄 Правила проживания (PDF)", "url": RULES_PDF_URL}],
             [{"text": "📑 Договор оферты (PDF)", "url": OFERTA_PDF_URL}],
-            [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}]
+            [{"text": "⬅️ Назад в FAQ", "payload": "menu_faq"}],
         ]
         await reply(ans, buttons)
         return web.json_response({"status": "ok"})
@@ -649,35 +812,43 @@ async def handle_webhook(request: web.Request):
             "Если вы хотите передать вопрос администратору базы «Русалочка», нажмите кнопку ниже:"
         )
         buttons = [
-            [{"text": "💬 Задать вопрос администратору", "payload": "menu_feedback"}],
-            [{"text": "⬅️ В главное меню", "payload": "menu_root"}]
+            [
+                {
+                    "text": "💬 Задать вопрос администратору",
+                    "payload": "menu_feedback",
+                }
+            ],
+            [{"text": "⬅️ В главное меню", "payload": "menu_root"}],
         ]
         await reply(prompt, buttons)
         return web.json_response({"status": "ok"})
 
     return web.json_response({"status": "ok"})
 
+
 # =====================================================================
-# 5. MINI WEB APP С МУЛЬТИ-ФОТО ГАЛЕРЕЕЙ (.WEBP)
+# 6. MINI WEB APP С МУЛЬТИ-ФОТО ГАЛЕРЕЕЙ (.WEBP)
 # =====================================================================
 async def handle_get(request: web.Request):
     cards_html = ""
     for key, room in ROOMS_CATALOG.items():
         folder_name = room.get("folder", key)
         photos = get_room_photos(folder_name)
-        
+
         if photos:
             photos_count = len(photos)
-            gallery_inner = "".join([
-                f'<img src="{p}" alt="{room["title"]}" class="gallery-img" loading="lazy">' 
-                for p in photos
-            ])
-            gallery_tag = f'''
+            gallery_inner = "".join(
+                [
+                    f'<img src="{p}" alt="{room["title"]}" class="gallery-img" loading="lazy">'
+                    for p in photos
+                ]
+            )
+            gallery_tag = f"""
             <div class="gallery-wrapper">
                 <div class="gallery-container">{gallery_inner}</div>
                 <div class="photo-counter">📸 {photos_count} фото (листайте вправо)</div>
             </div>
-            '''
+            """
         else:
             gallery_tag = '<div class="img-placeholder">🏖 Фото базы отдыха «Русалочка»</div>'
 
@@ -866,11 +1037,13 @@ async def handle_get(request: web.Request):
     </html>"""
     return web.Response(text=full_html, content_type="text/html", status=200)
 
+
 async def handle_rules_pdf(request: web.Request):
     pdf_path = "rules.pdf"
     if os.path.exists(pdf_path):
         return web.FileResponse(pdf_path)
     return web.Response(text="Файл с правилами не найден на сервере.", status=404)
+
 
 async def handle_oferta_pdf(request: web.Request):
     pdf_path = "oferta.pdf"
@@ -878,12 +1051,14 @@ async def handle_oferta_pdf(request: web.Request):
         return web.FileResponse(pdf_path)
     return web.Response(text="Файл оферты не найден на сервере.", status=404)
 
+
 async def on_startup(app_instance: web.Application):
     os.makedirs("images", exist_ok=True)
     logging.info("Проверка токена в MAX API...")
     await max_bot.get_me()
     logging.info(f"Регистрируем подписку на Webhook: {WEBHOOK_URL}...")
     await max_bot.setup_subscription(WEBHOOK_URL)
+
 
 app = web.Application()
 app.on_startup.append(on_startup)
@@ -900,7 +1075,10 @@ app.router.add_get("/webhook", handle_get)
 app.router.add_post("/webhook", handle_webhook)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
     port = int(os.getenv("PORT", 3000))
     logging.info(f"Запуск сервера бота MAX на порту {port}...")
     web.run_app(app, host="0.0.0.0", port=port)
