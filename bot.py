@@ -611,8 +611,17 @@ async def handle_webhook(request: web.Request):
             await max_bot.send_message(chat_id=ADMIN_CHAT_ID, text=admin_ticket)
         return web.json_response({"status": "ok"})
 
-    # 3. ПРОСМОТР СТАТИСТИКИ КЛИКОВ ЧЕРЕЗ ЧАТ (/stats)
+    # 3. ПРОСМОТР СТАТИСТИКИ КЛИКОВ (СТРОГО ТОЛЬКО ДЛЯ АДМИНИСТРАТОРА)
     if action in ["/stats", "stats", "статистика"]:
+        is_admin = False
+        if str(ADMIN_CHAT_ID) != "0":
+            if chat_id_str == str(ADMIN_CHAT_ID) or user_id_str == str(ADMIN_CHAT_ID):
+                is_admin = True
+
+        if not is_admin:
+            # Обычным пользователям не отвечаем
+            return web.json_response({"status": "ok"})
+
         stats = get_booking_stats_max()
         total = stats.get("total_clicks", 0)
         users_cnt = len(stats.get("users", {}))
